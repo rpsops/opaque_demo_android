@@ -729,7 +729,19 @@ internal object IntegrityCheckingUniffiLib {
         uniffiCheckApiChecksums(this)
     }
 
+    external fun uniffi_opaque_ke_uniffi_checksum_func_client_login_finish(): Short
+
+    external fun uniffi_opaque_ke_uniffi_checksum_func_client_login_start(): Short
+
+    external fun uniffi_opaque_ke_uniffi_checksum_func_client_registration_finish(): Short
+
     external fun uniffi_opaque_ke_uniffi_checksum_func_client_registration_start(): Short
+
+    external fun uniffi_opaque_ke_uniffi_checksum_func_server_login_finish(): Short
+
+    external fun uniffi_opaque_ke_uniffi_checksum_func_server_login_start(): Short
+
+    external fun uniffi_opaque_ke_uniffi_checksum_func_server_registration_finish(): Short
 
     external fun uniffi_opaque_ke_uniffi_checksum_func_server_registration_start(): Short
 
@@ -743,8 +755,46 @@ internal object UniffiLib {
         Native.register(UniffiLib::class.java, findLibraryName(componentName = "opaque_ke_uniffi"))
     }
 
+    external fun uniffi_opaque_ke_uniffi_fn_func_client_login_finish(
+        `credentialResponse`: RustBuffer.ByValue,
+        `clientLogin`: RustBuffer.ByValue,
+        `password`: RustBuffer.ByValue,
+        uniffi_out_err: UniffiRustCallStatus,
+    ): RustBuffer.ByValue
+
+    external fun uniffi_opaque_ke_uniffi_fn_func_client_login_start(
+        `password`: RustBuffer.ByValue,
+        uniffi_out_err: UniffiRustCallStatus,
+    ): RustBuffer.ByValue
+
+    external fun uniffi_opaque_ke_uniffi_fn_func_client_registration_finish(
+        `password`: RustBuffer.ByValue,
+        `clientReg`: RustBuffer.ByValue,
+        `regResponse`: RustBuffer.ByValue,
+        uniffi_out_err: UniffiRustCallStatus,
+    ): RustBuffer.ByValue
+
     external fun uniffi_opaque_ke_uniffi_fn_func_client_registration_start(
         `password`: RustBuffer.ByValue,
+        uniffi_out_err: UniffiRustCallStatus,
+    ): RustBuffer.ByValue
+
+    external fun uniffi_opaque_ke_uniffi_fn_func_server_login_finish(
+        `serverLogin`: RustBuffer.ByValue,
+        `credentialFinalization`: RustBuffer.ByValue,
+        uniffi_out_err: UniffiRustCallStatus,
+    ): RustBuffer.ByValue
+
+    external fun uniffi_opaque_ke_uniffi_fn_func_server_login_start(
+        `serverSetup`: RustBuffer.ByValue,
+        `passwordFile`: RustBuffer.ByValue,
+        `credentialRequest`: RustBuffer.ByValue,
+        `clientId`: RustBuffer.ByValue,
+        uniffi_out_err: UniffiRustCallStatus,
+    ): RustBuffer.ByValue
+
+    external fun uniffi_opaque_ke_uniffi_fn_func_server_registration_finish(
+        `registrationUpload`: RustBuffer.ByValue,
         uniffi_out_err: UniffiRustCallStatus,
     ): RustBuffer.ByValue
 
@@ -971,7 +1021,25 @@ private fun uniffiCheckContractApiVersion(lib: IntegrityCheckingUniffiLib) {
 
 @Suppress("UNUSED_PARAMETER")
 private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
-    if (lib.uniffi_opaque_ke_uniffi_checksum_func_client_registration_start() != 2441.toShort()) {
+    if (lib.uniffi_opaque_ke_uniffi_checksum_func_client_login_finish() != 36349.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_opaque_ke_uniffi_checksum_func_client_login_start() != 9197.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_opaque_ke_uniffi_checksum_func_client_registration_finish() != 65233.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_opaque_ke_uniffi_checksum_func_client_registration_start() != 49354.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_opaque_ke_uniffi_checksum_func_server_login_finish() != 55231.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_opaque_ke_uniffi_checksum_func_server_login_start() != 18846.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_opaque_ke_uniffi_checksum_func_server_registration_finish() != 26127.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_opaque_ke_uniffi_checksum_func_server_registration_start() != 14053.toShort()) {
@@ -1160,7 +1228,103 @@ public object FfiConverterByteArray : FfiConverterRustBuffer<ByteArray> {
     }
 }
 
-data class RegistrationStartResult(
+data class ClientLoginFinishResult(
+    var `credentialFinalization`: kotlin.ByteArray,
+    var `sessionKey`: kotlin.ByteArray,
+) {
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeClientLoginFinishResult : FfiConverterRustBuffer<ClientLoginFinishResult> {
+    override fun read(buf: ByteBuffer): ClientLoginFinishResult =
+        ClientLoginFinishResult(
+            FfiConverterByteArray.read(buf),
+            FfiConverterByteArray.read(buf),
+        )
+
+    override fun allocationSize(value: ClientLoginFinishResult) =
+        (
+            FfiConverterByteArray.allocationSize(value.`credentialFinalization`) +
+                FfiConverterByteArray.allocationSize(value.`sessionKey`)
+        )
+
+    override fun write(
+        value: ClientLoginFinishResult,
+        buf: ByteBuffer,
+    ) {
+        FfiConverterByteArray.write(value.`credentialFinalization`, buf)
+        FfiConverterByteArray.write(value.`sessionKey`, buf)
+    }
+}
+
+data class ClientLoginStartResult(
+    var `credentialRequest`: kotlin.ByteArray,
+    var `clientLogin`: kotlin.ByteArray,
+) {
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeClientLoginStartResult : FfiConverterRustBuffer<ClientLoginStartResult> {
+    override fun read(buf: ByteBuffer): ClientLoginStartResult =
+        ClientLoginStartResult(
+            FfiConverterByteArray.read(buf),
+            FfiConverterByteArray.read(buf),
+        )
+
+    override fun allocationSize(value: ClientLoginStartResult) =
+        (
+            FfiConverterByteArray.allocationSize(value.`credentialRequest`) +
+                FfiConverterByteArray.allocationSize(value.`clientLogin`)
+        )
+
+    override fun write(
+        value: ClientLoginStartResult,
+        buf: ByteBuffer,
+    ) {
+        FfiConverterByteArray.write(value.`credentialRequest`, buf)
+        FfiConverterByteArray.write(value.`clientLogin`, buf)
+    }
+}
+
+data class ClientRegistrationFinishResult(
+    var `registrationUpload`: kotlin.ByteArray,
+    var `exportKey`: kotlin.ByteArray,
+) {
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeClientRegistrationFinishResult : FfiConverterRustBuffer<ClientRegistrationFinishResult> {
+    override fun read(buf: ByteBuffer): ClientRegistrationFinishResult =
+        ClientRegistrationFinishResult(
+            FfiConverterByteArray.read(buf),
+            FfiConverterByteArray.read(buf),
+        )
+
+    override fun allocationSize(value: ClientRegistrationFinishResult) =
+        (
+            FfiConverterByteArray.allocationSize(value.`registrationUpload`) +
+                FfiConverterByteArray.allocationSize(value.`exportKey`)
+        )
+
+    override fun write(
+        value: ClientRegistrationFinishResult,
+        buf: ByteBuffer,
+    ) {
+        FfiConverterByteArray.write(value.`registrationUpload`, buf)
+        FfiConverterByteArray.write(value.`exportKey`, buf)
+    }
+}
+
+data class ClientRegistrationStartResult(
     var `message`: kotlin.ByteArray,
     var `state`: kotlin.ByteArray,
 ) {
@@ -1170,25 +1334,110 @@ data class RegistrationStartResult(
 /**
  * @suppress
  */
-public object FfiConverterTypeRegistrationStartResult : FfiConverterRustBuffer<RegistrationStartResult> {
-    override fun read(buf: ByteBuffer): RegistrationStartResult =
-        RegistrationStartResult(
+public object FfiConverterTypeClientRegistrationStartResult : FfiConverterRustBuffer<ClientRegistrationStartResult> {
+    override fun read(buf: ByteBuffer): ClientRegistrationStartResult =
+        ClientRegistrationStartResult(
             FfiConverterByteArray.read(buf),
             FfiConverterByteArray.read(buf),
         )
 
-    override fun allocationSize(value: RegistrationStartResult) =
+    override fun allocationSize(value: ClientRegistrationStartResult) =
         (
             FfiConverterByteArray.allocationSize(value.`message`) +
                 FfiConverterByteArray.allocationSize(value.`state`)
         )
 
     override fun write(
-        value: RegistrationStartResult,
+        value: ClientRegistrationStartResult,
         buf: ByteBuffer,
     ) {
         FfiConverterByteArray.write(value.`message`, buf)
         FfiConverterByteArray.write(value.`state`, buf)
+    }
+}
+
+data class ServerLoginStartResult(
+    var `credentialResponse`: kotlin.ByteArray,
+    var `serverLogin`: kotlin.ByteArray,
+) {
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeServerLoginStartResult : FfiConverterRustBuffer<ServerLoginStartResult> {
+    override fun read(buf: ByteBuffer): ServerLoginStartResult =
+        ServerLoginStartResult(
+            FfiConverterByteArray.read(buf),
+            FfiConverterByteArray.read(buf),
+        )
+
+    override fun allocationSize(value: ServerLoginStartResult) =
+        (
+            FfiConverterByteArray.allocationSize(value.`credentialResponse`) +
+                FfiConverterByteArray.allocationSize(value.`serverLogin`)
+        )
+
+    override fun write(
+        value: ServerLoginStartResult,
+        buf: ByteBuffer,
+    ) {
+        FfiConverterByteArray.write(value.`credentialResponse`, buf)
+        FfiConverterByteArray.write(value.`serverLogin`, buf)
+    }
+}
+
+sealed class LoginException : kotlin.Exception() {
+    class Generic(
+        val v1: kotlin.String,
+    ) : LoginException() {
+        override val message
+            get() = "v1=${ v1 }"
+    }
+
+    companion object ErrorHandler : UniffiRustCallStatusErrorHandler<LoginException> {
+        override fun lift(error_buf: RustBuffer.ByValue): LoginException = FfiConverterTypeLoginError.lift(error_buf)
+    }
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeLoginError : FfiConverterRustBuffer<LoginException> {
+    override fun read(buf: ByteBuffer): LoginException =
+        when (buf.getInt()) {
+            1 -> {
+                LoginException.Generic(
+                    FfiConverterString.read(buf),
+                )
+            }
+
+            else -> {
+                throw RuntimeException("invalid error enum value, something is very wrong!!")
+            }
+        }
+
+    override fun allocationSize(value: LoginException): ULong =
+        when (value) {
+            is LoginException.Generic -> (
+                // Add the size for the Int that specifies the variant plus the size needed for all fields
+                4UL +
+                    FfiConverterString.allocationSize(value.v1)
+            )
+        }
+
+    override fun write(
+        value: LoginException,
+        buf: ByteBuffer,
+    ) {
+        when (value) {
+            is LoginException.Generic -> {
+                buf.putInt(1)
+                FfiConverterString.write(value.v1, buf)
+                Unit
+            }
+        }.let { /* this makes the `when` an expression, which ensures it is exhaustive */ }
     }
 }
 
@@ -1245,11 +1494,95 @@ public object FfiConverterTypeRegistrationError : FfiConverterRustBuffer<Registr
     }
 }
 
+@Throws(LoginException::class)
+fun `clientLoginFinish`(
+    `credentialResponse`: kotlin.ByteArray,
+    `clientLogin`: kotlin.ByteArray,
+    `password`: kotlin.ByteArray,
+): ClientLoginFinishResult =
+    FfiConverterTypeClientLoginFinishResult.lift(
+        uniffiRustCallWithError(LoginException) { _status ->
+            UniffiLib.uniffi_opaque_ke_uniffi_fn_func_client_login_finish(
+                FfiConverterByteArray.lower(`credentialResponse`),
+                FfiConverterByteArray.lower(`clientLogin`),
+                FfiConverterByteArray.lower(`password`),
+                _status,
+            )
+        },
+    )
+
+@Throws(LoginException::class)
+fun `clientLoginStart`(`password`: kotlin.ByteArray): ClientLoginStartResult =
+    FfiConverterTypeClientLoginStartResult.lift(
+        uniffiRustCallWithError(LoginException) { _status ->
+            UniffiLib.uniffi_opaque_ke_uniffi_fn_func_client_login_start(FfiConverterByteArray.lower(`password`), _status)
+        },
+    )
+
 @Throws(RegistrationException::class)
-fun `clientRegistrationStart`(`password`: kotlin.ByteArray): RegistrationStartResult =
-    FfiConverterTypeRegistrationStartResult.lift(
+fun `clientRegistrationFinish`(
+    `password`: kotlin.ByteArray,
+    `clientReg`: kotlin.ByteArray,
+    `regResponse`: kotlin.ByteArray,
+): ClientRegistrationFinishResult =
+    FfiConverterTypeClientRegistrationFinishResult.lift(
+        uniffiRustCallWithError(RegistrationException) { _status ->
+            UniffiLib.uniffi_opaque_ke_uniffi_fn_func_client_registration_finish(
+                FfiConverterByteArray.lower(`password`),
+                FfiConverterByteArray.lower(`clientReg`),
+                FfiConverterByteArray.lower(`regResponse`),
+                _status,
+            )
+        },
+    )
+
+@Throws(RegistrationException::class)
+fun `clientRegistrationStart`(`password`: kotlin.ByteArray): ClientRegistrationStartResult =
+    FfiConverterTypeClientRegistrationStartResult.lift(
         uniffiRustCallWithError(RegistrationException) { _status ->
             UniffiLib.uniffi_opaque_ke_uniffi_fn_func_client_registration_start(FfiConverterByteArray.lower(`password`), _status)
+        },
+    )
+
+@Throws(LoginException::class)
+fun `serverLoginFinish`(
+    `serverLogin`: kotlin.ByteArray,
+    `credentialFinalization`: kotlin.ByteArray,
+): kotlin.ByteArray =
+    FfiConverterByteArray.lift(
+        uniffiRustCallWithError(LoginException) { _status ->
+            UniffiLib.uniffi_opaque_ke_uniffi_fn_func_server_login_finish(
+                FfiConverterByteArray.lower(`serverLogin`),
+                FfiConverterByteArray.lower(`credentialFinalization`),
+                _status,
+            )
+        },
+    )
+
+@Throws(LoginException::class)
+fun `serverLoginStart`(
+    `serverSetup`: kotlin.ByteArray,
+    `passwordFile`: kotlin.ByteArray,
+    `credentialRequest`: kotlin.ByteArray,
+    `clientId`: kotlin.ByteArray,
+): ServerLoginStartResult =
+    FfiConverterTypeServerLoginStartResult.lift(
+        uniffiRustCallWithError(LoginException) { _status ->
+            UniffiLib.uniffi_opaque_ke_uniffi_fn_func_server_login_start(
+                FfiConverterByteArray.lower(`serverSetup`),
+                FfiConverterByteArray.lower(`passwordFile`),
+                FfiConverterByteArray.lower(`credentialRequest`),
+                FfiConverterByteArray.lower(`clientId`),
+                _status,
+            )
+        },
+    )
+
+@Throws(RegistrationException::class)
+fun `serverRegistrationFinish`(`registrationUpload`: kotlin.ByteArray): kotlin.ByteArray =
+    FfiConverterByteArray.lift(
+        uniffiRustCallWithError(RegistrationException) { _status ->
+            UniffiLib.uniffi_opaque_ke_uniffi_fn_func_server_registration_finish(FfiConverterByteArray.lower(`registrationUpload`), _status)
         },
     )
 

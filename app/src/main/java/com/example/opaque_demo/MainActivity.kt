@@ -12,8 +12,11 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.opaque_demo.ui.theme.Opaque_demoTheme
 
 class MainActivity : ComponentActivity() {
@@ -33,18 +36,20 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun Buttons(modifier: Modifier = Modifier, viewModel: RegisterViewModel = RegisterViewModel()) {
+fun Buttons(modifier: Modifier = Modifier, viewModel: RegisterViewModel = viewModel()) {
     Column(
         modifier = modifier.fillMaxSize(),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
+        val result by viewModel.result.collectAsState()
+
         Button(onClick = { viewModel.register() }) {
             Text(text = "register")
         }
 
-        Button(onClick = { viewModel.createSession() }) {
-            Text(text = "create session")
+        result?.let {
+            Text(text = it)
         }
     }
 }

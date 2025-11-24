@@ -1,7 +1,6 @@
 package com.example.opaque_demo
 
 import android.util.Log
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.lifecycle.ViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -25,11 +24,11 @@ class RegisterViewModel : ViewModel() {
 
         val serverSetup = serverSetup();
         val serverRegStartResult =
-            serverRegistrationStart(serverSetup, clientRegStartResult.message, byteArrayOf(1, 2))
+            serverRegistrationStart(serverSetup, clientRegStartResult.registrationRequest, byteArrayOf(1, 2))
 
         val clientRegFinishResult = clientRegistrationFinish(
             byteArrayOf(1, 2, 3),
-            clientRegStartResult.state,
+            clientRegStartResult.clientRegistration,
             serverRegStartResult
         )
 
@@ -51,21 +50,28 @@ class RegisterViewModel : ViewModel() {
         val startClient = System.currentTimeMillis()
         val clientLoginFinish = clientLoginFinish(
             serverLoginStart.credentialResponse,
-            clientLoginStart.clientLogin,
+            clientLoginStart.clientRegistration,
             byteArrayOf(1, 2, 3)
         )
         val endClient2 = System.currentTimeMillis()
 
         val clientSessionKey = clientLoginFinish.sessionKey
 
-        val serverLoginFinish = serverLoginFinish(serverLoginStart.serverLogin, clientLoginFinish.credentialFinalization)
+        val serverLoginFinish = serverLoginFinish(
+            serverLoginStart.serverLogin,
+            clientLoginFinish.credentialFinalization
+        )
 
         val serverSessionKey = serverLoginFinish
 
         val endTime = System.currentTimeMillis()
         Log.d("OpaqueDemo", "Opaque process took ${endTime - startTime} ms")
-        Log.d("OpaqueDemo", "Client took ${(endClient1 - startTime) + (endClient2 - startClient)} ms")
-        _result.value = "Opaque process took ${endTime - startTime} ms\n Client took ${(endClient1 - startTime) + (endClient2 - startClient)} ms"
+        Log.d(
+            "OpaqueDemo",
+            "Client took ${(endClient1 - startTime) + (endClient2 - startClient)} ms"
+        )
+        _result.value =
+            "Opaque process took ${endTime - startTime} ms\n Client took ${(endClient1 - startTime) + (endClient2 - startClient)} ms"
     }
 
     fun createSession() {

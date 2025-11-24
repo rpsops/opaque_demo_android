@@ -757,7 +757,7 @@ internal object UniffiLib {
 
     external fun uniffi_opaque_ke_uniffi_fn_func_client_login_finish(
         `credentialResponse`: RustBuffer.ByValue,
-        `clientLogin`: RustBuffer.ByValue,
+        `clientRegistration`: RustBuffer.ByValue,
         `password`: RustBuffer.ByValue,
         uniffi_out_err: UniffiRustCallStatus,
     ): RustBuffer.ByValue
@@ -769,8 +769,8 @@ internal object UniffiLib {
 
     external fun uniffi_opaque_ke_uniffi_fn_func_client_registration_finish(
         `password`: RustBuffer.ByValue,
-        `clientReg`: RustBuffer.ByValue,
-        `regResponse`: RustBuffer.ByValue,
+        `clientRegistration`: RustBuffer.ByValue,
+        `registrationResponse`: RustBuffer.ByValue,
         uniffi_out_err: UniffiRustCallStatus,
     ): RustBuffer.ByValue
 
@@ -1021,28 +1021,28 @@ private fun uniffiCheckContractApiVersion(lib: IntegrityCheckingUniffiLib) {
 
 @Suppress("UNUSED_PARAMETER")
 private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
-    if (lib.uniffi_opaque_ke_uniffi_checksum_func_client_login_finish() != 36349.toShort()) {
+    if (lib.uniffi_opaque_ke_uniffi_checksum_func_client_login_finish() != 27466.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_opaque_ke_uniffi_checksum_func_client_login_start() != 9197.toShort()) {
+    if (lib.uniffi_opaque_ke_uniffi_checksum_func_client_login_start() != 64323.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_opaque_ke_uniffi_checksum_func_client_registration_finish() != 65233.toShort()) {
+    if (lib.uniffi_opaque_ke_uniffi_checksum_func_client_registration_finish() != 3829.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_opaque_ke_uniffi_checksum_func_client_registration_start() != 49354.toShort()) {
+    if (lib.uniffi_opaque_ke_uniffi_checksum_func_client_registration_start() != 57468.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_opaque_ke_uniffi_checksum_func_server_login_finish() != 55231.toShort()) {
+    if (lib.uniffi_opaque_ke_uniffi_checksum_func_server_login_finish() != 38118.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_opaque_ke_uniffi_checksum_func_server_login_start() != 18846.toShort()) {
+    if (lib.uniffi_opaque_ke_uniffi_checksum_func_server_login_start() != 29661.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_opaque_ke_uniffi_checksum_func_server_registration_finish() != 26127.toShort()) {
+    if (lib.uniffi_opaque_ke_uniffi_checksum_func_server_registration_finish() != 1440.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_opaque_ke_uniffi_checksum_func_server_registration_start() != 14053.toShort()) {
+    if (lib.uniffi_opaque_ke_uniffi_checksum_func_server_registration_start() != 48087.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_opaque_ke_uniffi_checksum_func_server_setup() != 61649.toShort()) {
@@ -1262,7 +1262,7 @@ public object FfiConverterTypeClientLoginFinishResult : FfiConverterRustBuffer<C
 
 data class ClientLoginStartResult(
     var `credentialRequest`: kotlin.ByteArray,
-    var `clientLogin`: kotlin.ByteArray,
+    var `clientRegistration`: kotlin.ByteArray,
 ) {
     companion object
 }
@@ -1280,7 +1280,7 @@ public object FfiConverterTypeClientLoginStartResult : FfiConverterRustBuffer<Cl
     override fun allocationSize(value: ClientLoginStartResult) =
         (
             FfiConverterByteArray.allocationSize(value.`credentialRequest`) +
-                FfiConverterByteArray.allocationSize(value.`clientLogin`)
+                FfiConverterByteArray.allocationSize(value.`clientRegistration`)
         )
 
     override fun write(
@@ -1288,7 +1288,7 @@ public object FfiConverterTypeClientLoginStartResult : FfiConverterRustBuffer<Cl
         buf: ByteBuffer,
     ) {
         FfiConverterByteArray.write(value.`credentialRequest`, buf)
-        FfiConverterByteArray.write(value.`clientLogin`, buf)
+        FfiConverterByteArray.write(value.`clientRegistration`, buf)
     }
 }
 
@@ -1325,8 +1325,8 @@ public object FfiConverterTypeClientRegistrationFinishResult : FfiConverterRustB
 }
 
 data class ClientRegistrationStartResult(
-    var `message`: kotlin.ByteArray,
-    var `state`: kotlin.ByteArray,
+    var `registrationRequest`: kotlin.ByteArray,
+    var `clientRegistration`: kotlin.ByteArray,
 ) {
     companion object
 }
@@ -1343,16 +1343,16 @@ public object FfiConverterTypeClientRegistrationStartResult : FfiConverterRustBu
 
     override fun allocationSize(value: ClientRegistrationStartResult) =
         (
-            FfiConverterByteArray.allocationSize(value.`message`) +
-                FfiConverterByteArray.allocationSize(value.`state`)
+            FfiConverterByteArray.allocationSize(value.`registrationRequest`) +
+                FfiConverterByteArray.allocationSize(value.`clientRegistration`)
         )
 
     override fun write(
         value: ClientRegistrationStartResult,
         buf: ByteBuffer,
     ) {
-        FfiConverterByteArray.write(value.`message`, buf)
-        FfiConverterByteArray.write(value.`state`, buf)
+        FfiConverterByteArray.write(value.`registrationRequest`, buf)
+        FfiConverterByteArray.write(value.`clientRegistration`, buf)
     }
 }
 
@@ -1494,23 +1494,35 @@ public object FfiConverterTypeRegistrationError : FfiConverterRustBuffer<Registr
     }
 }
 
+/**
+ * Completes the OPAQUE login flow on the client side.
+ *
+ * This function takes the server's credential response, the client's login state,
+ * and the user's password to derive the session key.
+ */
 @Throws(LoginException::class)
 fun `clientLoginFinish`(
     `credentialResponse`: kotlin.ByteArray,
-    `clientLogin`: kotlin.ByteArray,
+    `clientRegistration`: kotlin.ByteArray,
     `password`: kotlin.ByteArray,
 ): ClientLoginFinishResult =
     FfiConverterTypeClientLoginFinishResult.lift(
         uniffiRustCallWithError(LoginException) { _status ->
             UniffiLib.uniffi_opaque_ke_uniffi_fn_func_client_login_finish(
                 FfiConverterByteArray.lower(`credentialResponse`),
-                FfiConverterByteArray.lower(`clientLogin`),
+                FfiConverterByteArray.lower(`clientRegistration`),
                 FfiConverterByteArray.lower(`password`),
                 _status,
             )
         },
     )
 
+/**
+ * Initiates the OPAQUE login flow on the client side.
+ *
+ * This function takes the user's password and returns the initial credential request
+ * to be sent to the server, as well as the client's internal login state.
+ */
 @Throws(LoginException::class)
 fun `clientLoginStart`(`password`: kotlin.ByteArray): ClientLoginStartResult =
     FfiConverterTypeClientLoginStartResult.lift(
@@ -1519,23 +1531,36 @@ fun `clientLoginStart`(`password`: kotlin.ByteArray): ClientLoginStartResult =
         },
     )
 
+/**
+ * Completes the OPAQUE registration flow on the client side.
+ *
+ * This function takes the user's password, the client's registration state,
+ * and the server's registration response.
+ * It returns a RegistrationUpload to be sent to the server and the export key.
+ */
 @Throws(RegistrationException::class)
 fun `clientRegistrationFinish`(
     `password`: kotlin.ByteArray,
-    `clientReg`: kotlin.ByteArray,
-    `regResponse`: kotlin.ByteArray,
+    `clientRegistration`: kotlin.ByteArray,
+    `registrationResponse`: kotlin.ByteArray,
 ): ClientRegistrationFinishResult =
     FfiConverterTypeClientRegistrationFinishResult.lift(
         uniffiRustCallWithError(RegistrationException) { _status ->
             UniffiLib.uniffi_opaque_ke_uniffi_fn_func_client_registration_finish(
                 FfiConverterByteArray.lower(`password`),
-                FfiConverterByteArray.lower(`clientReg`),
-                FfiConverterByteArray.lower(`regResponse`),
+                FfiConverterByteArray.lower(`clientRegistration`),
+                FfiConverterByteArray.lower(`registrationResponse`),
                 _status,
             )
         },
     )
 
+/**
+ * Initiates the OPAQUE registration flow on the client side.
+ *
+ * This function takes the user's password and returns the initial registration message to be sent to the server,
+ * and the client's internal registration state.
+ */
 @Throws(RegistrationException::class)
 fun `clientRegistrationStart`(`password`: kotlin.ByteArray): ClientRegistrationStartResult =
     FfiConverterTypeClientRegistrationStartResult.lift(
@@ -1544,6 +1569,13 @@ fun `clientRegistrationStart`(`password`: kotlin.ByteArray): ClientRegistrationS
         },
     )
 
+/**
+ * Completes the OPAQUE login flow on the server side.
+ *
+ * This function takes the server's login state and the client's
+ * credential finalization message.
+ * It returns the session key.
+ */
 @Throws(LoginException::class)
 fun `serverLoginFinish`(
     `serverLogin`: kotlin.ByteArray,
@@ -1559,6 +1591,16 @@ fun `serverLoginFinish`(
         },
     )
 
+/**
+ * The first step of the OPAQUE login flow on the server side.
+ *
+ * This function takes a previously generated server setup,
+ * the user's password file (from registration),
+ * a credential request from the client,
+ * and the client's ID.
+ * It returns a credential response to be sent to the client,
+ * and a server login state to be used in the finish step.
+ */
 @Throws(LoginException::class)
 fun `serverLoginStart`(
     `serverSetup`: kotlin.ByteArray,
@@ -1578,6 +1620,11 @@ fun `serverLoginStart`(
         },
     )
 
+/**
+ * Completes the QPAQUE login flow on the server side.
+ *
+ * Takes a RegistrationUpload from the client and returns a password file to be stored server side
+ */
 @Throws(RegistrationException::class)
 fun `serverRegistrationFinish`(`registrationUpload`: kotlin.ByteArray): kotlin.ByteArray =
     FfiConverterByteArray.lift(
@@ -1586,6 +1633,14 @@ fun `serverRegistrationFinish`(`registrationUpload`: kotlin.ByteArray): kotlin.B
         },
     )
 
+/**
+ * The first sep of the OPAQUE login flow on the server side.
+ *
+ * This function takes a previously generated server setup,
+ * a RegistrationRequest generated by the client,
+ * and the client's ID.
+ * It returns a RegistrationResponse to be returned to the client.
+ */
 @Throws(RegistrationException::class)
 fun `serverRegistrationStart`(
     `serverSetup`: kotlin.ByteArray,

@@ -4,15 +4,15 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import uniffi.opaque_ke_uniffi.clientLoginFinish
-import uniffi.opaque_ke_uniffi.clientLoginStart
-import uniffi.opaque_ke_uniffi.clientRegistrationFinish
-import uniffi.opaque_ke_uniffi.clientRegistrationStart
-import uniffi.opaque_ke_uniffi.serverLoginFinish
-import uniffi.opaque_ke_uniffi.serverLoginStart
-import uniffi.opaque_ke_uniffi.serverRegistrationFinish
-import uniffi.opaque_ke_uniffi.serverRegistrationStart
-import uniffi.opaque_ke_uniffi.serverSetup
+import se.digg.opaque_ke_uniffi.clientLoginFinish
+import se.digg.opaque_ke_uniffi.clientLoginStart
+import se.digg.opaque_ke_uniffi.clientRegistrationFinish
+import se.digg.opaque_ke_uniffi.clientRegistrationStart
+import se.digg.opaque_ke_uniffi.serverLoginFinish
+import se.digg.opaque_ke_uniffi.serverLoginStart
+import se.digg.opaque_ke_uniffi.serverRegistrationFinish
+import se.digg.opaque_ke_uniffi.serverRegistrationStart
+import se.digg.opaque_ke_uniffi.serverSetup
 
 class RegisterViewModel : ViewModel() {
 
@@ -72,10 +72,6 @@ class RegisterViewModel : ViewModel() {
         )
         _result.value =
             "Opaque process took ${endTime - startTime} ms\n Client took ${(endClient1 - startTime) + (endClient2 - startClient)} ms"
-    }
-
-    fun createSession() {
-        TODO("Not yet implemented")
     }
 
 }

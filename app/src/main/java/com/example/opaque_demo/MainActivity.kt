@@ -47,6 +47,9 @@ fun Buttons(modifier: Modifier = Modifier, viewModel: RegisterViewModel = viewMo
         Button(onClick = { viewModel.register() }) {
             Text(text = "register")
         }
+        Button(onClick = { viewModel.testJWS() }) {
+            Text(text = "testJWS")
+        }
 
         result?.let {
             Text(text = it)

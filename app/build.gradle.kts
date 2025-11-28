@@ -2,6 +2,7 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
+    kotlin("plugin.serialization") version "1.5.31"
 }
 
 android {
@@ -53,6 +54,8 @@ dependencies {
     implementation(libs.androidx.compose.material3)
     implementation(files("libs/opaque_ke_uniffi-release.aar"))
     implementation("net.java.dev.jna:jna:5.14.0@aar")
+    implementation(libs.nimbus.jose.jwt)
+    implementation(libs.kotlinx.serialization.json)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)

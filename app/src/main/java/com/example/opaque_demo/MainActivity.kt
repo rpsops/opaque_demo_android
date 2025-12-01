@@ -16,6 +16,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.opaque_demo.ui.theme.Opaque_demoTheme
 
@@ -37,6 +38,7 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun Buttons(modifier: Modifier = Modifier, viewModel: RegisterViewModel = viewModel()) {
+    val context = LocalContext.current
     Column(
         modifier = modifier.fillMaxSize(),
         verticalArrangement = Arrangement.Center,
@@ -47,7 +49,7 @@ fun Buttons(modifier: Modifier = Modifier, viewModel: RegisterViewModel = viewMo
         Button(onClick = { viewModel.register() }) {
             Text(text = "register")
         }
-        Button(onClick = { viewModel.testJWS() }) {
+        Button(onClick = { viewModel.testJWS(context) }) {
             Text(text = "testJWS")
         }
 

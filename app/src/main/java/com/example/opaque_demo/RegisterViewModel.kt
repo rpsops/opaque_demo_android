@@ -1,14 +1,17 @@
 package com.example.opaque_demo
 
+import android.content.Context
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import com.nimbusds.jose.JOSEObjectType
 import com.nimbusds.jose.JWSAlgorithm
 import com.nimbusds.jose.JWSHeader
 import com.nimbusds.jose.JWSObject
+import com.nimbusds.jose.crypto.ECDSASigner
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import se.digg.opaque_ke_uniffi.clientLoginFinish
 import se.digg.opaque_ke_uniffi.clientLoginStart
@@ -19,7 +22,8 @@ import se.digg.opaque_ke_uniffi.serverLoginStart
 import se.digg.opaque_ke_uniffi.serverRegistrationFinish
 import se.digg.opaque_ke_uniffi.serverRegistrationStart
 import se.digg.opaque_ke_uniffi.serverSetup
-import java.time.Instant
+import java.security.KeyStore
+import java.security.interfaces.ECPrivateKey
 
 class RegisterViewModel : ViewModel() {
 
@@ -85,7 +89,7 @@ class RegisterViewModel : ViewModel() {
             "Opaque process took ${endTime - startTime} ms\n Client took ${(endClient1 - startTime) + (endClient2 - startClient)} ms"
     }
 
-    fun testJWS() {
+    fun testJWS(context: Context) {
         val clientRegStartResult = clientRegistrationStart(byteArrayOf(1, 2, 3))
 
         // this is the blind that we'll save for later
@@ -111,7 +115,7 @@ class RegisterViewModel : ViewModel() {
             null,
             "1.0",
             "1234567890",
-            Instant.now(),
+//            Instant.now(),
             "device",
             encryptedPayload
         )
@@ -122,20 +126,36 @@ class RegisterViewModel : ViewModel() {
 
         // create JWSObject
         // todo check serialization
+        val serializedPayload = com.nimbusds.jose.Payload(Json.encodeToString(payloadWrapper))
+
         val jwsObject = JWSObject(
             header,
-            com.nimbusds.jose.Payload(Json.encodeToString(payloadWrapper))
+            serializedPayload
         )
 
         // sign JWS
         // todo figure out signer params
-        jwsObject.sign()
-
-
+        val signer = getSigner(context)
+        jwsObject.sign(signer)
+        var jwsString = jwsObject.serialize()
 
 
     }
 
+
+    private fun getSigner(context: Context): ECDSASigner {
+        val password = "Test1234".toCharArray()
+        val alias = "wallet-hsm"
+
+        val keyStore = KeyStore.getInstance("PKCS12")
+
+        context.resources.openRawResource(R.raw.wallethsm).use { inputStream ->
+            keyStore.load(inputStream, password)
+        }
+
+        val privateKey = keyStore.getKey(alias, password) as ECPrivateKey
+        return ECDSASigner(privateKey)
+    }
 
     // we're probably not going to use context
     @Serializable
@@ -147,7 +167,7 @@ class RegisterViewModel : ViewModel() {
         val pake_session_id: String?,
         val ver: String,
         val nonce: String,
-        val iat: Instant,
+//        val iat: Instant,
         val enc: String,
         val data: ByteArray
     )

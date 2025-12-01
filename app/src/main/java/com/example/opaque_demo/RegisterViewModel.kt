@@ -12,6 +12,12 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
+import kotlinx.serialization.KSerializer
+import kotlinx.serialization.descriptors.PrimitiveKind
+import kotlinx.serialization.descriptors.PrimitiveSerialDescriptor
+import kotlinx.serialization.descriptors.SerialDescriptor
+import kotlinx.serialization.encoding.Decoder
+import kotlinx.serialization.encoding.Encoder
 import kotlinx.serialization.json.Json
 import se.digg.opaque_ke_uniffi.clientLoginFinish
 import se.digg.opaque_ke_uniffi.clientLoginStart
@@ -24,6 +30,7 @@ import se.digg.opaque_ke_uniffi.serverRegistrationStart
 import se.digg.opaque_ke_uniffi.serverSetup
 import java.security.KeyStore
 import java.security.interfaces.ECPrivateKey
+import java.time.Instant
 
 class RegisterViewModel : ViewModel() {
 
@@ -115,7 +122,7 @@ class RegisterViewModel : ViewModel() {
             null,
             "1.0",
             "1234567890",
-//            Instant.now(),
+            Instant.now(),
             "device",
             encryptedPayload
         )
@@ -167,10 +174,17 @@ class RegisterViewModel : ViewModel() {
         val pake_session_id: String?,
         val ver: String,
         val nonce: String,
-//        val iat: Instant,
+        @Serializable(with = InstantEpochSecondsSerializer::class)
+        val iat: Instant,
         val enc: String,
         val data: ByteArray
     )
+
+    private object InstantEpochSecondsSerializer : KSerializer<Instant> {
+        override val descriptor: SerialDescriptor = PrimitiveSerialDescriptor("Instant", PrimitiveKind.LONG)
+        override fun serialize(encoder: Encoder, value: Instant) = encoder.encodeLong(value.epochSecond)
+        override fun deserialize(decoder: Decoder): Instant = Instant.ofEpochSecond(decoder.decodeLong())
+    }
 
     private data class Payload(
         val protocol: String,

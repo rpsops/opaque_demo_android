@@ -3,19 +3,24 @@ package com.example.opaque_demo
 import android.content.Context
 import android.util.Log
 import androidx.lifecycle.ViewModel
+import com.nimbusds.jose.EncryptionMethod
 import com.nimbusds.jose.JOSEObjectType
+import com.nimbusds.jose.JWEAlgorithm
+import com.nimbusds.jose.JWEHeader
+import com.nimbusds.jose.JWEObject
 import com.nimbusds.jose.JWSAlgorithm
 import com.nimbusds.jose.JWSHeader
 import com.nimbusds.jose.JWSObject
+import com.nimbusds.jose.crypto.ECDHEncrypter
 import com.nimbusds.jose.crypto.ECDSASigner
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.serialization.Serializable
-import kotlinx.serialization.encodeToString
 import kotlinx.serialization.KSerializer
+import kotlinx.serialization.Serializable
 import kotlinx.serialization.descriptors.PrimitiveKind
 import kotlinx.serialization.descriptors.PrimitiveSerialDescriptor
 import kotlinx.serialization.descriptors.SerialDescriptor
+import kotlinx.serialization.encodeToString
 import kotlinx.serialization.encoding.Decoder
 import kotlinx.serialization.encoding.Encoder
 import kotlinx.serialization.json.Json
@@ -28,8 +33,11 @@ import se.digg.opaque_ke_uniffi.serverLoginStart
 import se.digg.opaque_ke_uniffi.serverRegistrationFinish
 import se.digg.opaque_ke_uniffi.serverRegistrationStart
 import se.digg.opaque_ke_uniffi.serverSetup
+import java.io.InputStream
 import java.security.KeyStore
+import java.security.cert.CertificateFactory
 import java.security.interfaces.ECPrivateKey
+import java.security.interfaces.ECPublicKey
 import java.time.Instant
 
 class RegisterViewModel : ViewModel() {
@@ -109,9 +117,7 @@ class RegisterViewModel : ViewModel() {
         val payload = Payload("opaque", "evaluate", null, registrationRequest)
 
         // encrypt the payload
-        // todo make this happen
-        val encryptedPayload = byteArrayOf(/*payload*/)
-
+        val encryptedPayload = encryptPayload(payload, context)
 
         // wrap the payload
         val payloadWrapper = PayloadWrapper(
@@ -127,28 +133,49 @@ class RegisterViewModel : ViewModel() {
             encryptedPayload
         )
 
-        // create JWS headers
+        // create JWSObject
         // todo hard coded
         val header = JWSHeader.Builder(JWSAlgorithm.ES256).type(JOSEObjectType.JOSE).build()
-
-        // create JWSObject
-        // todo check serialization
-        val serializedPayload = com.nimbusds.jose.Payload(Json.encodeToString(payloadWrapper))
-
+        val serializedPayload = com.nimbusds.jose.Payload(Json.encodeToString(payloadWrapper).toByteArray())
         val jwsObject = JWSObject(
             header,
             serializedPayload
         )
 
         // sign JWS
-        // todo figure out signer params
         val signer = getSigner(context)
         jwsObject.sign(signer)
+
+        // result to send to server
         var jwsString = jwsObject.serialize()
 
 
     }
 
+    private fun encryptPayload(payload: Payload, context: Context): ByteArray {
+
+        val payloadBytes = Json.encodeToString(payload).toByteArray()
+
+        // todo check is contentType is really useful here
+        val header = JWEHeader.Builder(JWEAlgorithm.ECDH_ES, EncryptionMethod.A256GCM)
+            .contentType("application/octet-stream").build()
+
+
+        val jweObject = JWEObject(header, com.nimbusds.jose.Payload(payloadBytes))
+
+        val serverPublicKey = getServerPublicKey(context)
+
+        val encrypter = ECDHEncrypter(serverPublicKey)
+
+        jweObject.encrypt(encrypter)
+        return jweObject.serialize().toByteArray()
+    }
+
+    private fun getServerPublicKey(context: Context): ECPublicKey {
+        val inputStream: InputStream = context.resources.openRawResource(R.raw.serverkey)
+        val certificate = CertificateFactory.getInstance("X.509").generateCertificate(inputStream)
+        return certificate.publicKey as ECPublicKey
+    }
 
     private fun getSigner(context: Context): ECDSASigner {
         val password = "Test1234".toCharArray()
@@ -177,19 +204,41 @@ class RegisterViewModel : ViewModel() {
         @Serializable(with = InstantEpochSecondsSerializer::class)
         val iat: Instant,
         val enc: String,
+        @Serializable(with = Base64ByteArraySerializer::class)
         val data: ByteArray
     )
 
     private object InstantEpochSecondsSerializer : KSerializer<Instant> {
-        override val descriptor: SerialDescriptor = PrimitiveSerialDescriptor("Instant", PrimitiveKind.LONG)
-        override fun serialize(encoder: Encoder, value: Instant) = encoder.encodeLong(value.epochSecond)
-        override fun deserialize(decoder: Decoder): Instant = Instant.ofEpochSecond(decoder.decodeLong())
+        override val descriptor: SerialDescriptor =
+            PrimitiveSerialDescriptor("Instant", PrimitiveKind.LONG)
+
+        override fun serialize(encoder: Encoder, value: Instant) =
+            encoder.encodeLong(value.epochSecond)
+
+        override fun deserialize(decoder: Decoder): Instant =
+            Instant.ofEpochSecond(decoder.decodeLong())
     }
 
+    private object Base64ByteArraySerializer : KSerializer<ByteArray> {
+        override val descriptor: SerialDescriptor =
+            PrimitiveSerialDescriptor("Base64ByteArray", PrimitiveKind.STRING)
+
+        override fun serialize(encoder: Encoder, value: ByteArray) {
+            encoder.encodeString(java.util.Base64.getEncoder().encodeToString(value))
+        }
+
+        override fun deserialize(decoder: Decoder): ByteArray {
+            return java.util.Base64.getDecoder().decode(decoder.decodeString())
+        }
+    }
+
+    @Serializable
     private data class Payload(
         val protocol: String,
         val state: String,
+        @Serializable(with = Base64ByteArraySerializer::class)
         val authorization: ByteArray?,
+        @Serializable(with = Base64ByteArraySerializer::class)
         val req: ByteArray
     )
 

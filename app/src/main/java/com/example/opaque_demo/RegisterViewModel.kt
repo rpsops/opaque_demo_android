@@ -3,6 +3,7 @@ package com.example.opaque_demo
 import android.content.Context
 import android.util.Log
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import com.nimbusds.jose.EncryptionMethod
 import com.nimbusds.jose.JOSEObjectType
 import com.nimbusds.jose.JWEAlgorithm
@@ -13,8 +14,11 @@ import com.nimbusds.jose.JWSHeader
 import com.nimbusds.jose.JWSObject
 import com.nimbusds.jose.crypto.ECDHEncrypter
 import com.nimbusds.jose.crypto.ECDSASigner
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.descriptors.PrimitiveKind
@@ -24,6 +28,10 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.encoding.Decoder
 import kotlinx.serialization.encoding.Encoder
 import kotlinx.serialization.json.Json
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
 import se.digg.opaque_ke_uniffi.clientLoginFinish
 import se.digg.opaque_ke_uniffi.clientLoginStart
 import se.digg.opaque_ke_uniffi.clientRegistrationFinish
@@ -33,6 +41,7 @@ import se.digg.opaque_ke_uniffi.serverLoginStart
 import se.digg.opaque_ke_uniffi.serverRegistrationFinish
 import se.digg.opaque_ke_uniffi.serverRegistrationStart
 import se.digg.opaque_ke_uniffi.serverSetup
+import java.io.IOException
 import java.io.InputStream
 import java.security.KeyStore
 import java.security.cert.CertificateFactory
@@ -41,6 +50,8 @@ import java.security.interfaces.ECPublicKey
 import java.time.Instant
 
 class RegisterViewModel : ViewModel() {
+
+    private val client = OkHttpClient()
 
     private val _result = MutableStateFlow<String?>(null)
     val result = _result.asStateFlow()
@@ -105,23 +116,25 @@ class RegisterViewModel : ViewModel() {
     }
 
     fun testJWS(context: Context) {
-        val clientRegStartResult = clientRegistrationStart(byteArrayOf(1, 2, 3))
+        viewModelScope.launch(Dispatchers.IO) {
+            val clientRegStartResult = clientRegistrationStart(byteArrayOf(1, 2, 3))
 
-        // this is the blind that we'll save for later
-        val clientRegistration = clientRegStartResult.clientRegistration
+            // this is the blind that we'll save for later
+            val clientRegistration = clientRegStartResult.clientRegistration
 
-        // result to send to server
-        val registrationRequest = clientRegStartResult.registrationRequest
+            // result to send to server
+            val registrationRequest = clientRegStartResult.registrationRequest
 
-        // create the payload
-        val payload = Payload("opaque", "evaluate", null, registrationRequest)
+            // create the payload
+            val payload = Payload("opaque", "evaluate", null, registrationRequest)
 
-        // encrypt the payload
-        val encryptedPayload = encryptPayload(payload, context)
+            // encrypt the payload
+            val encryptedPayload = encryptPayload(payload, context)
 
         // wrap the payload
         val payloadWrapper = PayloadWrapper(
             "https://wallets/digg.se/1234567890",
+//            "a25d8884-c77b-43ab-bf9d-1279c08d860d",
             "wallet-hsm-key-1",
             "hsm",
             "pin_registration",
@@ -133,23 +146,54 @@ class RegisterViewModel : ViewModel() {
             encryptedPayload
         )
 
-        // create JWSObject
-        // todo hard coded
-        val header = JWSHeader.Builder(JWSAlgorithm.ES256).type(JOSEObjectType.JOSE).build()
-        val serializedPayload = com.nimbusds.jose.Payload(Json.encodeToString(payloadWrapper).toByteArray())
-        val jwsObject = JWSObject(
-            header,
-            serializedPayload
-        )
+            // create JWSObject
+            // todo hard coded
+            val header = JWSHeader.Builder(JWSAlgorithm.ES256).type(JOSEObjectType.JOSE).build()
+            val serializedPayload =
+                com.nimbusds.jose.Payload(Json.encodeToString(payloadWrapper).toByteArray())
+            val jwsObject = JWSObject(
+                header,
+                serializedPayload
+            )
 
-        // sign JWS
-        val signer = getSigner(context)
-        jwsObject.sign(signer)
+            // sign JWS
+            val signer = getSigner(context)
+            jwsObject.sign(signer)
 
-        // result to send to server
-        var jwsString = jwsObject.serialize()
+            // result to send to server
+            var jwsString = jwsObject.serialize()
 
+            val response = sendString(jwsString)
+            println(response)
+        }
+    }
 
+    suspend fun sendString(data: String): String {
+        return withContext(Dispatchers.IO) {
+            val mediaType = "application/json; charset=utf-8".toMediaType()
+            val body = data.toRequestBody(mediaType)
+            val request = Request.Builder()
+                .url("http://10.0.2.2:9010/rhsm-bff/service")
+//                .url("http://10.0.2.2:8088/r2ps-api/service")
+                .post(body)
+                .build()
+
+            try {
+                client.newCall(request).execute().use { response ->
+                    if (!response.isSuccessful) {
+                        Log.e("OpaqueDemo", "Unexpected code $response")
+                        throw IOException("Unexpected code $response")
+                    } else {
+                        val responseString = response.body?.string() ?: ""
+                        Log.d("OpaqueDemo", "Response: $responseString")
+                        responseString
+                    }
+                }
+            } catch (e: IOException) {
+                Log.e("OpaqueDemo", "Network error", e)
+                throw e
+            }
+        }
     }
 
     private fun encryptPayload(payload: Payload, context: Context): ByteArray {

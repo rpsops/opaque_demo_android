@@ -56,6 +56,7 @@ dependencies {
     implementation("net.java.dev.jna:jna:5.14.0@aar")
     implementation(libs.nimbus.jose.jwt)
     implementation(libs.kotlinx.serialization.json)
+    implementation(libs.okhttp)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)

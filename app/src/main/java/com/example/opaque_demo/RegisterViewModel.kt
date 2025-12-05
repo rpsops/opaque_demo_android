@@ -50,7 +50,6 @@ import java.security.cert.CertificateFactory
 import java.security.interfaces.ECPrivateKey
 import java.security.interfaces.ECPublicKey
 import java.time.Instant
-import java.util.Base64
 
 class RegisterViewModel : ViewModel() {
 
@@ -125,19 +124,12 @@ class RegisterViewModel : ViewModel() {
             val clientPrivateKey = getClientPrivateKey(context)
 
 
-
             // Client start
-
             val clientRegStartResult = clientRegistrationStart(byteArrayOf(1, 2, 3))
 
-            // this is the blind that we'll save for later
-            val clientRegistration = clientRegStartResult.clientRegistration
-
-            // result to send to server
-            val registrationRequest = clientRegStartResult.registrationRequest
-
             // create the payload
-            val payload = Payload("opaque", "evaluate", null, registrationRequest)
+            val payload =
+                Payload("opaque", "evaluate", null, clientRegStartResult.registrationRequest)
 
             // encrypt the payload
             val encryptedPayload = encryptPayload(payload, serverPublicKey)
@@ -157,62 +149,85 @@ class RegisterViewModel : ViewModel() {
                 encryptedPayload
             )
 
-            // create JWSObject
-            // todo hard coded
-            val header = JWSHeader.Builder(JWSAlgorithm.ES256).type(JOSEObjectType.JOSE).build()
-            val serializedPayload =
-                com.nimbusds.jose.Payload(Json.encodeToString(payloadWrapper).toByteArray())
-            val jwsObject = JWSObject(
-                header,
-                serializedPayload
+            // sign the payload
+            val signedJws = getSignedJws(payloadWrapper, clientPrivateKey)
+
+            // send evaluate to server
+            val serverEvaluateResponse = sendString(signedJws.serialize())
+
+            // handle server evaluate response
+            val serverPayloadWrapper = extractPayloadWrapper(
+                serverEvaluateResponse,
+                serverPublicKey,
+                clientPrivateKey
             )
 
-            // sign JWS
-            val signer = ECDSASigner(clientPrivateKey)
-            jwsObject.sign(signer)
-
-            // result to send to server
-            val jwsString = jwsObject.serialize()
-
-            // send to server
-            val serverEvaluateResponse = sendString(jwsString)
-
-            val serverEvalJws = JWSObject.parse(serverEvaluateResponse)
-
-
-            // verify signature
-            val jwsVerifier = ECDSAVerifier(serverPublicKey)
-            if (!serverEvalJws.verify(jwsVerifier)) {
-                throw Exception("Invalid signature")
-            }
-
-
-            // get serverPayload
-            val serverPayload = serverEvalJws.payload.toString()
-            val serverPayloadWrapper = Json.decodeFromString<ServerPayloadWrapper>(serverPayload)
-
-            print(serverPayloadWrapper)
-
-            // todo check what else needs verifying. Nonce, iat....
-
-            val jweDataString = String(serverPayloadWrapper.data)
-
-            val jweData = JWEObject.parse(jweDataString)
-            val decryptor = ECDHDecrypter(clientPrivateKey)
-            jweData.decrypt(decryptor)
-            val serverResponsePayload = Json.decodeFromString<ServerResponsePayload>(jweData.payload.toString())
-            val serverDataResponse = serverResponsePayload.resp
-
+            val registrationResponse = decryptServerPayload(serverPayloadWrapper, clientPrivateKey)
 
             // Client finish
-
             val clientRegFinishResult = clientRegistrationFinish(
                 byteArrayOf(1, 2, 3),
-                clientRegistration,
-                serverDataResponse
+                clientRegStartResult.clientRegistration,
+                registrationResponse
             )
             print(clientRegFinishResult)
         }
+    }
+
+    private fun extractPayloadWrapper(
+        serverResponse: String,
+        serverPublicKey: ECPublicKey,
+        clientPrivateKey: ECPrivateKey
+    ): ServerPayloadWrapper {
+
+        val serverResponseJws = JWSObject.parse(serverResponse)
+
+        // verify signature
+        val jwsVerifier = ECDSAVerifier(serverPublicKey)
+        if (!serverResponseJws.verify(jwsVerifier)) {
+            throw Exception("Invalid signature")
+        }
+
+        // get the PayloadWrapper
+        val serverPayload = serverResponseJws.payload.toString()
+        val serverPayloadWrapper = Json.decodeFromString<ServerPayloadWrapper>(serverPayload)
+
+        // todo check what else needs verifying. Nonce, iat....
+
+        return serverPayloadWrapper
+    }
+
+    private fun decryptServerPayload(
+        serverPayloadWrapper: ServerPayloadWrapper,
+        clientPrivateKey: ECPrivateKey
+    ): ByteArray {
+        // decrypt the inner payload and return it as byteArray
+        val payloadJwe = JWEObject.parse(String(serverPayloadWrapper.data))
+        val decryptor = ECDHDecrypter(clientPrivateKey)
+        payloadJwe.decrypt(decryptor)
+        val payload =
+            Json.decodeFromString<ServerResponsePayload>(payloadJwe.payload.toString())
+        return payload.resp
+    }
+
+    private fun getSignedJws(
+        payloadWrapper: PayloadWrapper,
+        clientPrivateKey: ECPrivateKey
+    ): JWSObject {
+        // create JWSObject
+        // todo hard coded
+        val header = JWSHeader.Builder(JWSAlgorithm.ES256).type(JOSEObjectType.JOSE).build()
+        val serializedPayload =
+            com.nimbusds.jose.Payload(Json.encodeToString(payloadWrapper).toByteArray())
+        val jwsObject = JWSObject(
+            header,
+            serializedPayload
+        )
+
+        // sign JWS
+        val signer = ECDSASigner(clientPrivateKey)
+        jwsObject.sign(signer)
+        return jwsObject
     }
 
 

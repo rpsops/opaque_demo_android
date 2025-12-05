@@ -5,16 +5,12 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.opaque_demo.model.RequestPayload
+import com.example.opaque_demo.network.OpaqueService
 import com.example.opaque_demo.security.OpaqueCryptoManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import okhttp3.MediaType.Companion.toMediaType
-import okhttp3.OkHttpClient
-import okhttp3.Request
-import okhttp3.RequestBody.Companion.toRequestBody
 import se.digg.opaque_ke_uniffi.clientLoginFinish
 import se.digg.opaque_ke_uniffi.clientLoginStart
 import se.digg.opaque_ke_uniffi.clientRegistrationFinish
@@ -24,12 +20,11 @@ import se.digg.opaque_ke_uniffi.serverLoginStart
 import se.digg.opaque_ke_uniffi.serverRegistrationFinish
 import se.digg.opaque_ke_uniffi.serverRegistrationStart
 import se.digg.opaque_ke_uniffi.serverSetup
-import java.io.IOException
 import java.security.SecureRandom
 
 class RegisterViewModel : ViewModel() {
 
-    private val client = OkHttpClient()
+    private val service = OpaqueService()
 
     private val _result = MutableStateFlow<String?>(null)
     val result = _result.asStateFlow()
@@ -52,7 +47,7 @@ class RegisterViewModel : ViewModel() {
 
             val signedJws = cryptoManager.createSignedJws("register-authorization", nonce, encryptedPayload)
 
-            val registerResponse = sendString(signedJws.serialize())
+            val registerResponse = service.sendRequest(signedJws.serialize())
             // We don't care about the result. This is just for testing
         }
     }
@@ -80,7 +75,7 @@ class RegisterViewModel : ViewModel() {
             val signedJws = cryptoManager.createSignedJws("pin_registration", evalNonce, encryptedPayload)
 
             // send evaluate to server
-            val serverEvaluateResponse = sendString(signedJws.serialize())
+            val serverEvaluateResponse = service.sendRequest(signedJws.serialize())
 
             // handle server evaluate response
             val serverPayloadWrapper = cryptoManager.extractPayloadWrapper(serverEvaluateResponse)
@@ -109,7 +104,7 @@ class RegisterViewModel : ViewModel() {
             )
 
             // send finalize to server
-            val serverFinalizeResponse = sendString(signedFinalizeJws.serialize())
+            val serverFinalizeResponse = service.sendRequest(signedFinalizeJws.serialize())
 
             // handle server finalize response
             val serverFinalizePayloadWrapper = cryptoManager.extractPayloadWrapper(serverFinalizeResponse)
@@ -117,34 +112,6 @@ class RegisterViewModel : ViewModel() {
             val serverFinalizePayload = cryptoManager.decryptServerPayload(serverFinalizePayloadWrapper)
 
             Log.d("OpaqueDemo", "RegisterPin is : ${serverFinalizePayload.msg!!}")
-        }
-    }
-
-    suspend fun sendString(data: String): String {
-        return withContext(Dispatchers.IO) {
-            val mediaType = "application/json; charset=utf-8".toMediaType()
-            val body = data.toRequestBody(mediaType)
-            val request = Request.Builder()
-                .url("http://10.0.2.2:9010/rhsm-bff/service")
-//                .url("http://10.0.2.2:8088/r2ps-api/service")
-                .post(body)
-                .build()
-
-            try {
-                client.newCall(request).execute().use { response ->
-                    if (!response.isSuccessful) {
-                        Log.e("OpaqueDemo", "Unexpected code $response")
-                        throw IOException("Unexpected code $response")
-                    } else {
-                        val responseString = response.body?.string() ?: ""
-                        Log.d("OpaqueDemo", "Response: $responseString")
-                        responseString
-                    }
-                }
-            } catch (e: IOException) {
-                Log.e("OpaqueDemo", "Network error", e)
-                throw e
-            }
         }
     }
 

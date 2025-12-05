@@ -46,7 +46,7 @@ fun Buttons(modifier: Modifier = Modifier, viewModel: RegisterViewModel = viewMo
     ) {
         val result by viewModel.result.collectAsState()
 
-        Button(onClick = { viewModel.register() }) {
+        Button(onClick = { viewModel.register(context) }) {
             Text(text = "register")
         }
         Button(onClick = { viewModel.testJWS(context) }) {

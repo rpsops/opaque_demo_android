@@ -12,6 +12,7 @@ import com.nimbusds.jose.JWEObject
 import com.nimbusds.jose.JWSAlgorithm
 import com.nimbusds.jose.JWSHeader
 import com.nimbusds.jose.JWSObject
+import com.nimbusds.jose.Payload
 import com.nimbusds.jose.crypto.ECDHDecrypter
 import com.nimbusds.jose.crypto.ECDHEncrypter
 import com.nimbusds.jose.crypto.ECDSASigner
@@ -34,18 +35,12 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
-import se.digg.opaque_ke_uniffi.clientLoginFinish
-import se.digg.opaque_ke_uniffi.clientLoginStart
 import se.digg.opaque_ke_uniffi.clientRegistrationFinish
 import se.digg.opaque_ke_uniffi.clientRegistrationStart
-import se.digg.opaque_ke_uniffi.serverLoginFinish
-import se.digg.opaque_ke_uniffi.serverLoginStart
-import se.digg.opaque_ke_uniffi.serverRegistrationFinish
-import se.digg.opaque_ke_uniffi.serverRegistrationStart
-import se.digg.opaque_ke_uniffi.serverSetup
 import java.io.IOException
 import java.io.InputStream
 import java.security.KeyStore
+import java.security.SecureRandom
 import java.security.cert.CertificateFactory
 import java.security.interfaces.ECPrivateKey
 import java.security.interfaces.ECPublicKey
@@ -58,63 +53,98 @@ class RegisterViewModel : ViewModel() {
     private val _result = MutableStateFlow<String?>(null)
     val result = _result.asStateFlow()
 
-    fun register() {
-        val clientRegStartResult = clientRegistrationStart(byteArrayOf(1, 2, 3))
+    var authz: ByteArray = ByteArray(16)
 
-        val serverSetup = serverSetup();
-        val serverRegStartResult =
-            serverRegistrationStart(
-                serverSetup,
-                clientRegStartResult.registrationRequest,
-                byteArrayOf(1, 2)
+//    fun register() {
+//        val clientRegStartResult = clientRegistrationStart(byteArrayOf(1, 2, 3))
+//
+//        val serverSetup = serverSetup();
+//        val serverRegStartResult =
+//            serverRegistrationStart(
+//                serverSetup,
+//                clientRegStartResult.registrationRequest,
+//                byteArrayOf(1, 2)
+//            )
+//
+//        val clientRegFinishResult = clientRegistrationFinish(
+//            byteArrayOf(1, 2, 3),
+//            clientRegStartResult.clientRegistration,
+//            serverRegStartResult
+//        )
+//
+//        val passwordFile =
+//            serverRegistrationFinish(clientRegFinishResult.registrationUpload)
+//
+//        val startTime = System.currentTimeMillis()
+//
+//        val clientLoginStart = clientLoginStart(byteArrayOf(1, 2, 3))
+//
+//        val endClient1 = System.currentTimeMillis()
+//        val serverLoginStart = serverLoginStart(
+//            serverSetup,
+//            passwordFile,
+//            clientLoginStart.credentialRequest,
+//            byteArrayOf(1, 2)
+//        )
+//
+//        val startClient = System.currentTimeMillis()
+//        val clientLoginFinish = clientLoginFinish(
+//            serverLoginStart.credentialResponse,
+//            clientLoginStart.clientRegistration,
+//            byteArrayOf(1, 2, 3)
+//        )
+//        val endClient2 = System.currentTimeMillis()
+//
+//        val clientSessionKey = clientLoginFinish.sessionKey
+//
+//        val serverLoginFinish = serverLoginFinish(
+//            serverLoginStart.serverLogin,
+//            clientLoginFinish.credentialFinalization
+//        )
+//
+//        val serverSessionKey = serverLoginFinish
+//
+//        val endTime = System.currentTimeMillis()
+//        Log.d("OpaqueDemo", "Opaque process took ${endTime - startTime} ms")
+//        Log.d(
+//            "OpaqueDemo",
+//            "Client took ${(endClient1 - startTime) + (endClient2 - startClient)} ms"
+//        )
+//        _result.value =
+//            "Opaque process took ${endTime - startTime} ms\n Client took ${(endClient1 - startTime) + (endClient2 - startClient)} ms"
+//    }
+
+    fun register(context: Context) {
+
+        viewModelScope.launch(Dispatchers.IO) {
+            val serverPublicKey = getServerPublicKey(context)
+            val clientPrivateKey = getClientPrivateKey(context)
+
+            SecureRandom().nextBytes(authz)
+            val encryptedPayload = encryptBytes(authz, serverPublicKey)
+
+            val evaluatePayloadWrapper = PayloadWrapper(
+                "https://wallets/digg.se/1234567890",
+//            "a25d8884-c77b-43ab-bf9d-1279c08d860d",
+                "wallet-hsm-key-1",
+                "hsm",
+                "register-authorization",
+                null,
+                "1.0",
+                "1234567890",
+                Instant.now(),
+                "device",
+                encryptedPayload
             )
 
-        val clientRegFinishResult = clientRegistrationFinish(
-            byteArrayOf(1, 2, 3),
-            clientRegStartResult.clientRegistration,
-            serverRegStartResult
-        )
+            val signedJws = getSignedJws(evaluatePayloadWrapper, clientPrivateKey)
 
-        val passwordFile =
-            serverRegistrationFinish(clientRegFinishResult.registrationUpload)
+            // send evaluate to server
+            val registerResponse = sendString(signedJws.serialize())
+            print(registerResponse)
 
-        val startTime = System.currentTimeMillis()
+        }
 
-        val clientLoginStart = clientLoginStart(byteArrayOf(1, 2, 3))
-
-        val endClient1 = System.currentTimeMillis()
-        val serverLoginStart = serverLoginStart(
-            serverSetup,
-            passwordFile,
-            clientLoginStart.credentialRequest,
-            byteArrayOf(1, 2)
-        )
-
-        val startClient = System.currentTimeMillis()
-        val clientLoginFinish = clientLoginFinish(
-            serverLoginStart.credentialResponse,
-            clientLoginStart.clientRegistration,
-            byteArrayOf(1, 2, 3)
-        )
-        val endClient2 = System.currentTimeMillis()
-
-        val clientSessionKey = clientLoginFinish.sessionKey
-
-        val serverLoginFinish = serverLoginFinish(
-            serverLoginStart.serverLogin,
-            clientLoginFinish.credentialFinalization
-        )
-
-        val serverSessionKey = serverLoginFinish
-
-        val endTime = System.currentTimeMillis()
-        Log.d("OpaqueDemo", "Opaque process took ${endTime - startTime} ms")
-        Log.d(
-            "OpaqueDemo",
-            "Client took ${(endClient1 - startTime) + (endClient2 - startClient)} ms"
-        )
-        _result.value =
-            "Opaque process took ${endTime - startTime} ms\n Client took ${(endClient1 - startTime) + (endClient2 - startClient)} ms"
     }
 
     fun testJWS(context: Context) {
@@ -170,9 +200,6 @@ class RegisterViewModel : ViewModel() {
                 clientRegStartResult.clientRegistration,
                 registrationResponse
             )
-
-            val authz =
-                byteArrayOf(122, -109, 88, 9, -124, -50, -25, 31, 28, 96, 45, -1, -58, 40, -67, 77)
 
             // create the payload
             val finalizePayload =
@@ -257,8 +284,7 @@ class RegisterViewModel : ViewModel() {
         // create JWSObject
         // todo hard coded
         val header = JWSHeader.Builder(JWSAlgorithm.ES256).type(JOSEObjectType.JOSE).build()
-        val serializedPayload =
-            com.nimbusds.jose.Payload(Json.encodeToString(payloadWrapper).toByteArray())
+        val serializedPayload = Payload(Json.encodeToString(payloadWrapper).toByteArray())
         val jwsObject = JWSObject(
             header,
             serializedPayload
@@ -300,15 +326,17 @@ class RegisterViewModel : ViewModel() {
     }
 
     private fun encryptPayload(payload: Payload, serverPublicKey: ECPublicKey): ByteArray {
-
         val payloadBytes = Json.encodeToString(payload).toByteArray()
+        return encryptBytes(payloadBytes, serverPublicKey)
+    }
 
+    private fun encryptBytes(payload: ByteArray, serverPublicKey: ECPublicKey): ByteArray {
         // todo check is contentType is really useful here
         val header = JWEHeader.Builder(JWEAlgorithm.ECDH_ES, EncryptionMethod.A256GCM)
             .contentType("application/octet-stream").build()
 
 
-        val jweObject = JWEObject(header, com.nimbusds.jose.Payload(payloadBytes))
+        val jweObject = JWEObject(header, Payload(payload))
 
         val encrypter = ECDHEncrypter(serverPublicKey)
 

@@ -114,8 +114,10 @@ class RegisterViewModel : ViewModel() {
 //            "Opaque process took ${endTime - startTime} ms\n Client took ${(endClient1 - startTime) + (endClient2 - startClient)} ms"
 //    }
 
+    /**
+     * Register the authentication code for the device
+     */
     fun register(context: Context) {
-
         viewModelScope.launch(Dispatchers.IO) {
             val serverPublicKey = getServerPublicKey(context)
             val clientPrivateKey = getClientPrivateKey(context)
@@ -123,28 +125,15 @@ class RegisterViewModel : ViewModel() {
             SecureRandom().nextBytes(authz)
             val encryptedPayload = encryptBytes(authz, serverPublicKey)
 
-            val evaluatePayloadWrapper = PayloadWrapper(
-                "https://wallets/digg.se/1234567890",
-//            "a25d8884-c77b-43ab-bf9d-1279c08d860d",
-                "wallet-hsm-key-1",
-                "hsm",
-                "register-authorization",
-                null,
-                "1.0",
-                "1234567890",
-                Instant.now(),
-                "device",
-                encryptedPayload
-            )
+            val nonce = generateNonce()
 
-            val signedJws = getSignedJws(evaluatePayloadWrapper, clientPrivateKey)
+            val payloadWrapper =
+                getPayloadWrapper("register-authorization", nonce, encryptedPayload)
 
-            // send evaluate to server
+            val signedJws = createSignedJws(payloadWrapper, clientPrivateKey)
+
             val registerResponse = sendString(signedJws.serialize())
-            print(registerResponse)
-
         }
-
     }
 
     fun testJWS(context: Context) {
@@ -152,7 +141,6 @@ class RegisterViewModel : ViewModel() {
 
             val serverPublicKey = getServerPublicKey(context)
             val clientPrivateKey = getClientPrivateKey(context)
-
 
             // Client start
             val clientRegStartResult = clientRegistrationStart(byteArrayOf(1, 2, 3))
@@ -164,23 +152,14 @@ class RegisterViewModel : ViewModel() {
             // encrypt the payload
             val encryptedPayload = encryptPayload(evaluatePayload, serverPublicKey)
 
+            val evalNonce = generateNonce()
+
             // wrap the payload
-            val evaluatePayloadWrapper = PayloadWrapper(
-                "https://wallets/digg.se/1234567890",
-//            "a25d8884-c77b-43ab-bf9d-1279c08d860d",
-                "wallet-hsm-key-1",
-                "hsm",
-                "pin_registration",
-                null,
-                "1.0",
-                "1234567890",
-                Instant.now(),
-                "device",
-                encryptedPayload
-            )
+            val evaluatePayloadWrapper =
+                getPayloadWrapper("pin_registration", evalNonce, encryptedPayload)
 
             // sign the payload
-            val signedJws = getSignedJws(evaluatePayloadWrapper, clientPrivateKey)
+            val signedJws = createSignedJws(evaluatePayloadWrapper, clientPrivateKey)
 
             // send evaluate to server
             val serverEvaluateResponse = sendString(signedJws.serialize())
@@ -188,8 +167,7 @@ class RegisterViewModel : ViewModel() {
             // handle server evaluate response
             val serverPayloadWrapper = extractPayloadWrapper(
                 serverEvaluateResponse,
-                serverPublicKey,
-                clientPrivateKey
+                serverPublicKey
             )
 
             val registrationResponse = decryptServerPayload(serverPayloadWrapper, clientPrivateKey)
@@ -198,53 +176,63 @@ class RegisterViewModel : ViewModel() {
             val clientRegFinishResult = clientRegistrationFinish(
                 byteArrayOf(1, 2, 3),
                 clientRegStartResult.clientRegistration,
-                registrationResponse
+                registrationResponse.resp!!
             )
 
             // create the payload
             val finalizePayload =
                 Payload("opaque", "finalize", authz, clientRegFinishResult.registrationUpload)
 
+            val finalizeNonce = generateNonce()
+
             // wrap the payload
-            val finalizePayloadWrapper = PayloadWrapper(
-                "https://wallets/digg.se/1234567890",
-//            "a25d8884-c77b-43ab-bf9d-1279c08d860d",
-                "wallet-hsm-key-1",
-                "hsm",
-                "pin_registration",
-                null,
-                "1.0",
-                "1234567890",
-                Instant.now(),
-                "device",
-                encryptPayload(finalizePayload, serverPublicKey)
-            )
+            val finalizePayloadWrapper =
+                getPayloadWrapper(
+                    "pin_registration",
+                    finalizeNonce,
+                    encryptPayload(finalizePayload, serverPublicKey)
+                )
 
             // sign the payload
-            val signedFinalizeJws = getSignedJws(finalizePayloadWrapper, clientPrivateKey)
+            val signedFinalizeJws = createSignedJws(finalizePayloadWrapper, clientPrivateKey)
 
             // send finalize to server
             val serverFinalizeResponse = sendString(signedFinalizeJws.serialize())
 
             // handle server finalize response
             val serverFinalizePayloadWrapper = extractPayloadWrapper(
-                serverEvaluateResponse,
-                serverPublicKey,
-                clientPrivateKey
+                serverFinalizeResponse,
+                serverPublicKey
             )
 
             val serverFinalizePayload =
                 decryptServerPayload(serverFinalizePayloadWrapper, clientPrivateKey)
 
-            print(serverFinalizePayload)
-
+            Log.d("OpaqueDemo", "RegisterPin is : ${serverFinalizePayload.msg!!}")
         }
     }
 
+    private fun getPayloadWrapper(type: String, nonce: String, encryptedPayload: ByteArray) =
+        PayloadWrapper(
+            "https://wallets/digg.se/1234567890",
+//            "a25d8884-c77b-43ab-bf9d-1279c08d860d",
+            "wallet-hsm-key-1",
+            "hsm",
+            type,
+            null,
+            "1.0",
+            nonce,
+            Instant.now(),
+            "device",
+            encryptedPayload
+        )
+
+    /**
+     * Extract and verify the payloadWrapper from the server response
+     */
     private fun extractPayloadWrapper(
         serverResponse: String,
-        serverPublicKey: ECPublicKey,
-        clientPrivateKey: ECPrivateKey
+        serverPublicKey: ECPublicKey
     ): ServerPayloadWrapper {
 
         val serverResponseJws = JWSObject.parse(serverResponse)
@@ -256,33 +244,34 @@ class RegisterViewModel : ViewModel() {
         }
 
         // get the PayloadWrapper
-        val serverPayload = serverResponseJws.payload.toString()
-        val serverPayloadWrapper = Json.decodeFromString<ServerPayloadWrapper>(serverPayload)
+        val serverPayloadWrapper =
+            Json.decodeFromString<ServerPayloadWrapper>(serverResponseJws.payload.toString())
 
         // todo check what else needs verifying. Nonce, iat....
 
         return serverPayloadWrapper
     }
 
+    /**
+     * Decrypt the inner payload. The content of the payload can vary depending on the concrete type in the server
+     */
     private fun decryptServerPayload(
         serverPayloadWrapper: ServerPayloadWrapper,
         clientPrivateKey: ECPrivateKey
-    ): ByteArray {
-        // decrypt the inner payload and return it as byteArray
+    ): ServerResponsePayload {
         val payloadJwe = JWEObject.parse(String(serverPayloadWrapper.data))
         val decryptor = ECDHDecrypter(clientPrivateKey)
         payloadJwe.decrypt(decryptor)
         val payload =
             Json.decodeFromString<ServerResponsePayload>(payloadJwe.payload.toString())
-        return payload.resp
+        return payload
     }
 
-    private fun getSignedJws(
+    private fun createSignedJws(
         payloadWrapper: PayloadWrapper,
         clientPrivateKey: ECPrivateKey
     ): JWSObject {
         // create JWSObject
-        // todo hard coded
         val header = JWSHeader.Builder(JWSAlgorithm.ES256).type(JOSEObjectType.JOSE).build()
         val serializedPayload = Payload(Json.encodeToString(payloadWrapper).toByteArray())
         val jwsObject = JWSObject(
@@ -295,7 +284,6 @@ class RegisterViewModel : ViewModel() {
         jwsObject.sign(signer)
         return jwsObject
     }
-
 
     suspend fun sendString(data: String): String {
         return withContext(Dispatchers.IO) {
@@ -331,15 +319,9 @@ class RegisterViewModel : ViewModel() {
     }
 
     private fun encryptBytes(payload: ByteArray, serverPublicKey: ECPublicKey): ByteArray {
-        // todo check is contentType is really useful here
-        val header = JWEHeader.Builder(JWEAlgorithm.ECDH_ES, EncryptionMethod.A256GCM)
-            .contentType("application/octet-stream").build()
-
-
+        val header = JWEHeader.Builder(JWEAlgorithm.ECDH_ES, EncryptionMethod.A256GCM).build()
         val jweObject = JWEObject(header, Payload(payload))
-
         val encrypter = ECDHEncrypter(serverPublicKey)
-
         jweObject.encrypt(encrypter)
         return jweObject.serialize().toByteArray()
     }
@@ -353,17 +335,19 @@ class RegisterViewModel : ViewModel() {
     private fun getClientPrivateKey(context: Context): ECPrivateKey {
         val password = "Test1234".toCharArray()
         val alias = "wallet-hsm"
-
         val keyStore = KeyStore.getInstance("PKCS12")
-
         context.resources.openRawResource(R.raw.wallethsm).use { inputStream ->
             keyStore.load(inputStream, password)
         }
-
         return keyStore.getKey(alias, password) as ECPrivateKey
     }
 
-    // we're probably not going to use context
+    private fun generateNonce(): String {
+        val nonceBytes = ByteArray(32)
+        SecureRandom().nextBytes(nonceBytes)
+        return java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(nonceBytes)
+    }
+
     @Serializable
     private data class PayloadWrapper(
         val client_id: String,
@@ -391,6 +375,23 @@ class RegisterViewModel : ViewModel() {
         val data: ByteArray
     )
 
+    @Serializable
+    private data class Payload(
+        val protocol: String,
+        val state: String,
+        @Serializable(with = Base64ByteArraySerializer::class)
+        val authorization: ByteArray?,
+        @Serializable(with = Base64ByteArraySerializer::class)
+        val req: ByteArray
+    )
+
+    @Serializable
+    private data class ServerResponsePayload(
+        @Serializable(with = Base64ByteArraySerializer::class)
+        val resp: ByteArray? = null,
+        val msg: String? = null
+    )
+
     private object InstantEpochSecondsSerializer : KSerializer<Instant> {
         override val descriptor: SerialDescriptor =
             PrimitiveSerialDescriptor("Instant", PrimitiveKind.LONG)
@@ -414,22 +415,6 @@ class RegisterViewModel : ViewModel() {
             return java.util.Base64.getDecoder().decode(decoder.decodeString())
         }
     }
-
-    @Serializable
-    private data class Payload(
-        val protocol: String,
-        val state: String,
-        @Serializable(with = Base64ByteArraySerializer::class)
-        val authorization: ByteArray?,
-        @Serializable(with = Base64ByteArraySerializer::class)
-        val req: ByteArray
-    )
-
-    @Serializable
-    private data class ServerResponsePayload(
-        @Serializable(with = Base64ByteArraySerializer::class)
-        val resp: ByteArray
-    )
 
 
 }

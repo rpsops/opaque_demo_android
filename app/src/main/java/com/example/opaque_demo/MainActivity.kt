@@ -46,12 +46,16 @@ fun Buttons(modifier: Modifier = Modifier, viewModel: RegisterViewModel = viewMo
     ) {
         val result by viewModel.result.collectAsState()
 
-        Button(onClick = { viewModel.register(context) }) {
-            Text(text = "register")
+        Button(onClick = { viewModel.registerAuthentication(context) }) {
+            Text(text = "Register auth code")
         }
-        Button(onClick = { viewModel.testJWS(context) }) {
-            Text(text = "testJWS")
+        Button(onClick = { viewModel.registerPin(context) }) {
+            Text(text = "Register pin")
         }
+        Button(onClick = { viewModel.localRegister() }) {
+            Text(text = "Local register")
+        }
+
 
         result?.let {
             Text(text = it)

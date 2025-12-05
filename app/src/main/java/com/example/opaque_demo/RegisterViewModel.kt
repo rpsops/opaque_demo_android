@@ -35,8 +35,15 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import se.digg.opaque_ke_uniffi.clientLoginFinish
+import se.digg.opaque_ke_uniffi.clientLoginStart
 import se.digg.opaque_ke_uniffi.clientRegistrationFinish
 import se.digg.opaque_ke_uniffi.clientRegistrationStart
+import se.digg.opaque_ke_uniffi.serverLoginFinish
+import se.digg.opaque_ke_uniffi.serverLoginStart
+import se.digg.opaque_ke_uniffi.serverRegistrationFinish
+import se.digg.opaque_ke_uniffi.serverRegistrationStart
+import se.digg.opaque_ke_uniffi.serverSetup
 import java.io.IOException
 import java.io.InputStream
 import java.security.KeyStore
@@ -55,69 +62,12 @@ class RegisterViewModel : ViewModel() {
 
     var authz: ByteArray = ByteArray(16)
 
-//    fun register() {
-//        val clientRegStartResult = clientRegistrationStart(byteArrayOf(1, 2, 3))
-//
-//        val serverSetup = serverSetup();
-//        val serverRegStartResult =
-//            serverRegistrationStart(
-//                serverSetup,
-//                clientRegStartResult.registrationRequest,
-//                byteArrayOf(1, 2)
-//            )
-//
-//        val clientRegFinishResult = clientRegistrationFinish(
-//            byteArrayOf(1, 2, 3),
-//            clientRegStartResult.clientRegistration,
-//            serverRegStartResult
-//        )
-//
-//        val passwordFile =
-//            serverRegistrationFinish(clientRegFinishResult.registrationUpload)
-//
-//        val startTime = System.currentTimeMillis()
-//
-//        val clientLoginStart = clientLoginStart(byteArrayOf(1, 2, 3))
-//
-//        val endClient1 = System.currentTimeMillis()
-//        val serverLoginStart = serverLoginStart(
-//            serverSetup,
-//            passwordFile,
-//            clientLoginStart.credentialRequest,
-//            byteArrayOf(1, 2)
-//        )
-//
-//        val startClient = System.currentTimeMillis()
-//        val clientLoginFinish = clientLoginFinish(
-//            serverLoginStart.credentialResponse,
-//            clientLoginStart.clientRegistration,
-//            byteArrayOf(1, 2, 3)
-//        )
-//        val endClient2 = System.currentTimeMillis()
-//
-//        val clientSessionKey = clientLoginFinish.sessionKey
-//
-//        val serverLoginFinish = serverLoginFinish(
-//            serverLoginStart.serverLogin,
-//            clientLoginFinish.credentialFinalization
-//        )
-//
-//        val serverSessionKey = serverLoginFinish
-//
-//        val endTime = System.currentTimeMillis()
-//        Log.d("OpaqueDemo", "Opaque process took ${endTime - startTime} ms")
-//        Log.d(
-//            "OpaqueDemo",
-//            "Client took ${(endClient1 - startTime) + (endClient2 - startClient)} ms"
-//        )
-//        _result.value =
-//            "Opaque process took ${endTime - startTime} ms\n Client took ${(endClient1 - startTime) + (endClient2 - startClient)} ms"
-//    }
 
     /**
      * Register the authentication code for the device
+     * This should already be available on the server. This is just to be able to run a registerPin
      */
-    fun register(context: Context) {
+    fun registerAuthentication(context: Context) {
         viewModelScope.launch(Dispatchers.IO) {
             val serverPublicKey = getServerPublicKey(context)
             val clientPrivateKey = getClientPrivateKey(context)
@@ -133,10 +83,14 @@ class RegisterViewModel : ViewModel() {
             val signedJws = createSignedJws(payloadWrapper, clientPrivateKey)
 
             val registerResponse = sendString(signedJws.serialize())
+            // We don't care about the result. This is just for testing
         }
     }
 
-    fun testJWS(context: Context) {
+    /**
+     * Register a pin (123) for the device
+     */
+    fun registerPin(context: Context) {
         viewModelScope.launch(Dispatchers.IO) {
 
             val serverPublicKey = getServerPublicKey(context)
@@ -416,5 +370,65 @@ class RegisterViewModel : ViewModel() {
         }
     }
 
+    /**
+     * Run the opaque process locally, without calling any server
+     */
+    fun localRegister() {
+        val clientRegStartResult = clientRegistrationStart(byteArrayOf(1, 2, 3))
 
+        val serverSetup = serverSetup();
+        val serverRegStartResult =
+            serverRegistrationStart(
+                serverSetup,
+                clientRegStartResult.registrationRequest,
+                byteArrayOf(1, 2)
+            )
+
+        val clientRegFinishResult = clientRegistrationFinish(
+            byteArrayOf(1, 2, 3),
+            clientRegStartResult.clientRegistration,
+            serverRegStartResult
+        )
+
+        val passwordFile =
+            serverRegistrationFinish(clientRegFinishResult.registrationUpload)
+
+        val startTime = System.currentTimeMillis()
+
+        val clientLoginStart = clientLoginStart(byteArrayOf(1, 2, 3))
+
+        val endClient1 = System.currentTimeMillis()
+        val serverLoginStart = serverLoginStart(
+            serverSetup,
+            passwordFile,
+            clientLoginStart.credentialRequest,
+            byteArrayOf(1, 2)
+        )
+
+        val startClient = System.currentTimeMillis()
+        val clientLoginFinish = clientLoginFinish(
+            serverLoginStart.credentialResponse,
+            clientLoginStart.clientRegistration,
+            byteArrayOf(1, 2, 3)
+        )
+        val endClient2 = System.currentTimeMillis()
+
+        val clientSessionKey = clientLoginFinish.sessionKey
+
+        val serverLoginFinish = serverLoginFinish(
+            serverLoginStart.serverLogin,
+            clientLoginFinish.credentialFinalization
+        )
+
+        val serverSessionKey = serverLoginFinish
+
+        val endTime = System.currentTimeMillis()
+        Log.d("OpaqueDemo", "Opaque process took ${endTime - startTime} ms")
+        Log.d(
+            "OpaqueDemo",
+            "Client took ${(endClient1 - startTime) + (endClient2 - startClient)} ms"
+        )
+        _result.value =
+            "Opaque process took ${endTime - startTime} ms\n Client took ${(endClient1 - startTime) + (endClient2 - startClient)} ms"
+    }
 }

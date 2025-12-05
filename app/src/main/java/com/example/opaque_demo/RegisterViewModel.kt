@@ -4,6 +4,10 @@ import android.content.Context
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.opaque_demo.model.PayloadWrapper
+import com.example.opaque_demo.model.RequestPayload
+import com.example.opaque_demo.model.ServerPayloadWrapper
+import com.example.opaque_demo.model.ServerResponsePayload
 import com.nimbusds.jose.EncryptionMethod
 import com.nimbusds.jose.JOSEObjectType
 import com.nimbusds.jose.JWEAlgorithm
@@ -22,14 +26,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlinx.serialization.KSerializer
-import kotlinx.serialization.Serializable
-import kotlinx.serialization.descriptors.PrimitiveKind
-import kotlinx.serialization.descriptors.PrimitiveSerialDescriptor
-import kotlinx.serialization.descriptors.SerialDescriptor
 import kotlinx.serialization.encodeToString
-import kotlinx.serialization.encoding.Decoder
-import kotlinx.serialization.encoding.Encoder
 import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -101,7 +98,7 @@ class RegisterViewModel : ViewModel() {
 
             // create the payload
             val evaluatePayload =
-                Payload("opaque", "evaluate", null, clientRegStartResult.registrationRequest)
+                RequestPayload("opaque", "evaluate", null, clientRegStartResult.registrationRequest)
 
             // encrypt the payload
             val encryptedPayload = encryptPayload(evaluatePayload, serverPublicKey)
@@ -135,7 +132,7 @@ class RegisterViewModel : ViewModel() {
 
             // create the payload
             val finalizePayload =
-                Payload("opaque", "finalize", authz, clientRegFinishResult.registrationUpload)
+                RequestPayload("opaque", "finalize", authz, clientRegFinishResult.registrationUpload)
 
             val finalizeNonce = generateNonce()
 
@@ -267,7 +264,7 @@ class RegisterViewModel : ViewModel() {
         }
     }
 
-    private fun encryptPayload(payload: Payload, serverPublicKey: ECPublicKey): ByteArray {
+    private fun encryptPayload(payload: RequestPayload, serverPublicKey: ECPublicKey): ByteArray {
         val payloadBytes = Json.encodeToString(payload).toByteArray()
         return encryptBytes(payloadBytes, serverPublicKey)
     }
@@ -302,73 +299,6 @@ class RegisterViewModel : ViewModel() {
         return java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(nonceBytes)
     }
 
-    @Serializable
-    private data class PayloadWrapper(
-        val client_id: String,
-        val kid: String,
-        val context: String,
-        val type: String,
-        val pake_session_id: String?,
-        val ver: String,
-        val nonce: String,
-        @Serializable(with = InstantEpochSecondsSerializer::class)
-        val iat: Instant,
-        val enc: String,
-        @Serializable(with = Base64ByteArraySerializer::class)
-        val data: ByteArray
-    )
-
-    @Serializable
-    private data class ServerPayloadWrapper(
-        val ver: String,
-        val nonce: String,
-        @Serializable(with = InstantEpochSecondsSerializer::class)
-        val iat: Instant,
-        val enc: String,
-        @Serializable(with = Base64ByteArraySerializer::class)
-        val data: ByteArray
-    )
-
-    @Serializable
-    private data class Payload(
-        val protocol: String,
-        val state: String,
-        @Serializable(with = Base64ByteArraySerializer::class)
-        val authorization: ByteArray?,
-        @Serializable(with = Base64ByteArraySerializer::class)
-        val req: ByteArray
-    )
-
-    @Serializable
-    private data class ServerResponsePayload(
-        @Serializable(with = Base64ByteArraySerializer::class)
-        val resp: ByteArray? = null,
-        val msg: String? = null
-    )
-
-    private object InstantEpochSecondsSerializer : KSerializer<Instant> {
-        override val descriptor: SerialDescriptor =
-            PrimitiveSerialDescriptor("Instant", PrimitiveKind.LONG)
-
-        override fun serialize(encoder: Encoder, value: Instant) =
-            encoder.encodeLong(value.epochSecond)
-
-        override fun deserialize(decoder: Decoder): Instant =
-            Instant.ofEpochSecond(decoder.decodeLong())
-    }
-
-    private object Base64ByteArraySerializer : KSerializer<ByteArray> {
-        override val descriptor: SerialDescriptor =
-            PrimitiveSerialDescriptor("Base64ByteArray", PrimitiveKind.STRING)
-
-        override fun serialize(encoder: Encoder, value: ByteArray) {
-            encoder.encodeString(java.util.Base64.getEncoder().encodeToString(value))
-        }
-
-        override fun deserialize(decoder: Decoder): ByteArray {
-            return java.util.Base64.getDecoder().decode(decoder.decodeString())
-        }
-    }
 
     /**
      * Run the opaque process locally, without calling any server

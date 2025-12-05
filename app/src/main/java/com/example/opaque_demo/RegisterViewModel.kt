@@ -128,14 +128,14 @@ class RegisterViewModel : ViewModel() {
             val clientRegStartResult = clientRegistrationStart(byteArrayOf(1, 2, 3))
 
             // create the payload
-            val payload =
+            val evaluatePayload =
                 Payload("opaque", "evaluate", null, clientRegStartResult.registrationRequest)
 
             // encrypt the payload
-            val encryptedPayload = encryptPayload(payload, serverPublicKey)
+            val encryptedPayload = encryptPayload(evaluatePayload, serverPublicKey)
 
             // wrap the payload
-            val payloadWrapper = PayloadWrapper(
+            val evaluatePayloadWrapper = PayloadWrapper(
                 "https://wallets/digg.se/1234567890",
 //            "a25d8884-c77b-43ab-bf9d-1279c08d860d",
                 "wallet-hsm-key-1",
@@ -150,7 +150,7 @@ class RegisterViewModel : ViewModel() {
             )
 
             // sign the payload
-            val signedJws = getSignedJws(payloadWrapper, clientPrivateKey)
+            val signedJws = getSignedJws(evaluatePayloadWrapper, clientPrivateKey)
 
             // send evaluate to server
             val serverEvaluateResponse = sendString(signedJws.serialize())
@@ -170,7 +170,47 @@ class RegisterViewModel : ViewModel() {
                 clientRegStartResult.clientRegistration,
                 registrationResponse
             )
-            print(clientRegFinishResult)
+
+            val authz =
+                byteArrayOf(122, -109, 88, 9, -124, -50, -25, 31, 28, 96, 45, -1, -58, 40, -67, 77)
+
+            // create the payload
+            val finalizePayload =
+                Payload("opaque", "finalize", authz, clientRegFinishResult.registrationUpload)
+
+            // wrap the payload
+            val finalizePayloadWrapper = PayloadWrapper(
+                "https://wallets/digg.se/1234567890",
+//            "a25d8884-c77b-43ab-bf9d-1279c08d860d",
+                "wallet-hsm-key-1",
+                "hsm",
+                "pin_registration",
+                null,
+                "1.0",
+                "1234567890",
+                Instant.now(),
+                "device",
+                encryptPayload(finalizePayload, serverPublicKey)
+            )
+
+            // sign the payload
+            val signedFinalizeJws = getSignedJws(finalizePayloadWrapper, clientPrivateKey)
+
+            // send finalize to server
+            val serverFinalizeResponse = sendString(signedFinalizeJws.serialize())
+
+            // handle server finalize response
+            val serverFinalizePayloadWrapper = extractPayloadWrapper(
+                serverEvaluateResponse,
+                serverPublicKey,
+                clientPrivateKey
+            )
+
+            val serverFinalizePayload =
+                decryptServerPayload(serverFinalizePayloadWrapper, clientPrivateKey)
+
+            print(serverFinalizePayload)
+
         }
     }
 

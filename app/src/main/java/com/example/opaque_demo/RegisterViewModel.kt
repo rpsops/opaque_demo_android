@@ -12,8 +12,10 @@ import com.nimbusds.jose.JWEObject
 import com.nimbusds.jose.JWSAlgorithm
 import com.nimbusds.jose.JWSHeader
 import com.nimbusds.jose.JWSObject
+import com.nimbusds.jose.crypto.ECDHDecrypter
 import com.nimbusds.jose.crypto.ECDHEncrypter
 import com.nimbusds.jose.crypto.ECDSASigner
+import com.nimbusds.jose.crypto.ECDSAVerifier
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -48,6 +50,7 @@ import java.security.cert.CertificateFactory
 import java.security.interfaces.ECPrivateKey
 import java.security.interfaces.ECPublicKey
 import java.time.Instant
+import java.util.Base64
 
 class RegisterViewModel : ViewModel() {
 
@@ -117,6 +120,14 @@ class RegisterViewModel : ViewModel() {
 
     fun testJWS(context: Context) {
         viewModelScope.launch(Dispatchers.IO) {
+
+            val serverPublicKey = getServerPublicKey(context)
+            val clientPrivateKey = getClientPrivateKey(context)
+
+
+
+            // Client start
+
             val clientRegStartResult = clientRegistrationStart(byteArrayOf(1, 2, 3))
 
             // this is the blind that we'll save for later
@@ -129,22 +140,22 @@ class RegisterViewModel : ViewModel() {
             val payload = Payload("opaque", "evaluate", null, registrationRequest)
 
             // encrypt the payload
-            val encryptedPayload = encryptPayload(payload, context)
+            val encryptedPayload = encryptPayload(payload, serverPublicKey)
 
-        // wrap the payload
-        val payloadWrapper = PayloadWrapper(
-            "https://wallets/digg.se/1234567890",
+            // wrap the payload
+            val payloadWrapper = PayloadWrapper(
+                "https://wallets/digg.se/1234567890",
 //            "a25d8884-c77b-43ab-bf9d-1279c08d860d",
-            "wallet-hsm-key-1",
-            "hsm",
-            "pin_registration",
-            null,
-            "1.0",
-            "1234567890",
-            Instant.now(),
-            "device",
-            encryptedPayload
-        )
+                "wallet-hsm-key-1",
+                "hsm",
+                "pin_registration",
+                null,
+                "1.0",
+                "1234567890",
+                Instant.now(),
+                "device",
+                encryptedPayload
+            )
 
             // create JWSObject
             // todo hard coded
@@ -157,16 +168,53 @@ class RegisterViewModel : ViewModel() {
             )
 
             // sign JWS
-            val signer = getSigner(context)
+            val signer = ECDSASigner(clientPrivateKey)
             jwsObject.sign(signer)
 
             // result to send to server
-            var jwsString = jwsObject.serialize()
+            val jwsString = jwsObject.serialize()
 
-            val response = sendString(jwsString)
-            println(response)
+            // send to server
+            val serverEvaluateResponse = sendString(jwsString)
+
+            val serverEvalJws = JWSObject.parse(serverEvaluateResponse)
+
+
+            // verify signature
+            val jwsVerifier = ECDSAVerifier(serverPublicKey)
+            if (!serverEvalJws.verify(jwsVerifier)) {
+                throw Exception("Invalid signature")
+            }
+
+
+            // get serverPayload
+            val serverPayload = serverEvalJws.payload.toString()
+            val serverPayloadWrapper = Json.decodeFromString<ServerPayloadWrapper>(serverPayload)
+
+            print(serverPayloadWrapper)
+
+            // todo check what else needs verifying. Nonce, iat....
+
+            val jweDataString = String(serverPayloadWrapper.data)
+
+            val jweData = JWEObject.parse(jweDataString)
+            val decryptor = ECDHDecrypter(clientPrivateKey)
+            jweData.decrypt(decryptor)
+            val serverResponsePayload = Json.decodeFromString<ServerResponsePayload>(jweData.payload.toString())
+            val serverDataResponse = serverResponsePayload.resp
+
+
+            // Client finish
+
+            val clientRegFinishResult = clientRegistrationFinish(
+                byteArrayOf(1, 2, 3),
+                clientRegistration,
+                serverDataResponse
+            )
+            print(clientRegFinishResult)
         }
     }
+
 
     suspend fun sendString(data: String): String {
         return withContext(Dispatchers.IO) {
@@ -196,7 +244,7 @@ class RegisterViewModel : ViewModel() {
         }
     }
 
-    private fun encryptPayload(payload: Payload, context: Context): ByteArray {
+    private fun encryptPayload(payload: Payload, serverPublicKey: ECPublicKey): ByteArray {
 
         val payloadBytes = Json.encodeToString(payload).toByteArray()
 
@@ -206,8 +254,6 @@ class RegisterViewModel : ViewModel() {
 
 
         val jweObject = JWEObject(header, com.nimbusds.jose.Payload(payloadBytes))
-
-        val serverPublicKey = getServerPublicKey(context)
 
         val encrypter = ECDHEncrypter(serverPublicKey)
 
@@ -221,7 +267,7 @@ class RegisterViewModel : ViewModel() {
         return certificate.publicKey as ECPublicKey
     }
 
-    private fun getSigner(context: Context): ECDSASigner {
+    private fun getClientPrivateKey(context: Context): ECPrivateKey {
         val password = "Test1234".toCharArray()
         val alias = "wallet-hsm"
 
@@ -231,8 +277,7 @@ class RegisterViewModel : ViewModel() {
             keyStore.load(inputStream, password)
         }
 
-        val privateKey = keyStore.getKey(alias, password) as ECPrivateKey
-        return ECDSASigner(privateKey)
+        return keyStore.getKey(alias, password) as ECPrivateKey
     }
 
     // we're probably not going to use context
@@ -243,6 +288,17 @@ class RegisterViewModel : ViewModel() {
         val context: String,
         val type: String,
         val pake_session_id: String?,
+        val ver: String,
+        val nonce: String,
+        @Serializable(with = InstantEpochSecondsSerializer::class)
+        val iat: Instant,
+        val enc: String,
+        @Serializable(with = Base64ByteArraySerializer::class)
+        val data: ByteArray
+    )
+
+    @Serializable
+    private data class ServerPayloadWrapper(
         val ver: String,
         val nonce: String,
         @Serializable(with = InstantEpochSecondsSerializer::class)
@@ -284,6 +340,12 @@ class RegisterViewModel : ViewModel() {
         val authorization: ByteArray?,
         @Serializable(with = Base64ByteArraySerializer::class)
         val req: ByteArray
+    )
+
+    @Serializable
+    private data class ServerResponsePayload(
+        @Serializable(with = Base64ByteArraySerializer::class)
+        val resp: ByteArray
     )
 
 

@@ -39,12 +39,13 @@ data class RequestPayload(
     @Serializable(with = Base64ByteArraySerializer::class)
     val authorization: ByteArray?,
     @Serializable(with = Base64ByteArraySerializer::class)
-    val req: ByteArray
+    val req: ByteArray,
 )
 
 @Serializable
 data class ServerResponsePayload(
     @Serializable(with = Base64ByteArraySerializer::class)
     val resp: ByteArray? = null,
-    val msg: String? = null
+    val msg: String? = null,
+    val pake_session_id: String? = null
 )

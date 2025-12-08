@@ -52,6 +52,9 @@ fun Buttons(modifier: Modifier = Modifier, viewModel: RegisterViewModel = viewMo
         Button(onClick = { viewModel.registerPin(context) }) {
             Text(text = "Register pin")
         }
+        Button(onClick = { viewModel.createSession(context) }) {
+            Text(text = "Create session")
+        }
         Button(onClick = { viewModel.localRegister() }) {
             Text(text = "Local register")
         }

@@ -45,7 +45,8 @@ class RegisterViewModel : ViewModel() {
 
             val nonce = cryptoManager.generateNonce()
 
-            val signedJws = cryptoManager.createSignedJws("register-authorization", nonce, encryptedPayload)
+            val signedJws =
+                cryptoManager.createSignedJws("register-authorization", nonce, encryptedPayload)
 
             val registerResponse = service.sendRequest(signedJws.serialize())
             // We don't care about the result. This is just for testing
@@ -72,7 +73,8 @@ class RegisterViewModel : ViewModel() {
             val evalNonce = cryptoManager.generateNonce()
 
             // sign the payload
-            val signedJws = cryptoManager.createSignedJws("pin_registration", evalNonce, encryptedPayload)
+            val signedJws =
+                cryptoManager.createSignedJws("pin_registration", evalNonce, encryptedPayload)
 
             // send evaluate to server
             val serverEvaluateResponse = service.sendRequest(signedJws.serialize())
@@ -91,7 +93,12 @@ class RegisterViewModel : ViewModel() {
 
             // create the payload
             val finalizePayload =
-                RequestPayload("opaque", "finalize", authz, clientRegFinishResult.registrationUpload)
+                RequestPayload(
+                    "opaque",
+                    "finalize",
+                    authz,
+                    clientRegFinishResult.registrationUpload
+                )
 
             val finalizeNonce = cryptoManager.generateNonce()
 
@@ -107,11 +114,48 @@ class RegisterViewModel : ViewModel() {
             val serverFinalizeResponse = service.sendRequest(signedFinalizeJws.serialize())
 
             // handle server finalize response
-            val serverFinalizePayloadWrapper = cryptoManager.extractPayloadWrapper(serverFinalizeResponse)
+            val serverFinalizePayloadWrapper =
+                cryptoManager.extractPayloadWrapper(serverFinalizeResponse)
 
-            val serverFinalizePayload = cryptoManager.decryptServerPayload(serverFinalizePayloadWrapper)
+            val serverFinalizePayload =
+                cryptoManager.decryptServerPayload(serverFinalizePayloadWrapper)
 
             Log.d("OpaqueDemo", "RegisterPin is : ${serverFinalizePayload.msg!!}")
+        }
+    }
+
+    fun createSession(context: Context) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val cryptoManager = OpaqueCryptoManager(context)
+
+            val clientLoginStart = clientLoginStart(byteArrayOf(1, 2, 3))
+
+            // create the payload
+            val evaluatePayload =
+                RequestPayload("opaque", "evaluate", null, clientLoginStart.credentialRequest)
+
+            // encrypt the payload
+            val encryptedPayload = cryptoManager.encryptPayload(evaluatePayload)
+
+            val evalNonce = cryptoManager.generateNonce()
+
+            // sign the payload
+            val signedJws =
+                cryptoManager.createSignedJws("authenticate", evalNonce, encryptedPayload)
+
+            // send evaluate to server
+            val serverEvaluateResponse = service.sendRequest(signedJws.serialize())
+
+            // handle server evaluate response
+            val serverPayloadWrapper = cryptoManager.extractPayloadWrapper(serverEvaluateResponse)
+
+            val registrationResponse = cryptoManager.decryptServerPayload(serverPayloadWrapper)
+
+            Log.d("OpaqueDemo", "Server response: ${registrationResponse.msg}")
+
+            // todo continue with client login finish
+
+
         }
     }
 

@@ -84,6 +84,9 @@ class RegisterViewModel : ViewModel() {
 
             val registrationResponse = cryptoManager.decryptServerPayload(serverPayloadWrapper)
 
+//            val hex = registrationResponse.resp!!.joinToString("") { "%02x".format(it) }
+//            Log.d("OpaqueDemo", "Hex value is : $hex")
+
             // Client finish
             val clientRegFinishResult = clientRegistrationFinish(
                 byteArrayOf(1, 2, 3),
@@ -130,6 +133,9 @@ class RegisterViewModel : ViewModel() {
 
             val clientLoginStart = clientLoginStart(byteArrayOf(1, 2, 3))
 
+            Log.d("OpaqueDemo", clientLoginStart.credentialRequest.joinToString { "%02x".format(it) })
+            Log.d("OpaqueDemo", "ClientLoginStart: ${clientLoginStart.credentialRequest.contentToString()}")
+
             // create the payload
             val evaluatePayload =
                 RequestPayload("opaque", "evaluate", null, clientLoginStart.credentialRequest)
@@ -148,12 +154,24 @@ class RegisterViewModel : ViewModel() {
 
             // handle server evaluate response
             val serverPayloadWrapper = cryptoManager.extractPayloadWrapper(serverEvaluateResponse)
+            val loginEvaluateResponse = cryptoManager.decryptServerPayload(serverPayloadWrapper)
 
-            val registrationResponse = cryptoManager.decryptServerPayload(serverPayloadWrapper)
+            val resp = loginEvaluateResponse.resp!!
+            Log.d("OpaqueDemo", "Response is : ${resp.contentToString()}")
+            val hex = resp.joinToString("") { "%02x".format(it) }
+            Log.d("OpaqueDemo", "Hex value is : $hex")
 
-            Log.d("OpaqueDemo", "Server response: ${registrationResponse.msg}")
-
-            // todo continue with client login finish
+            // client finish
+            try {
+                val clientLoginFinish = clientLoginFinish(
+                    loginEvaluateResponse.resp,
+                    clientLoginStart.clientRegistration,
+                    byteArrayOf(1, 2, 3)
+                )
+                Log.d("OpaqueDemo", "Session created: ${clientLoginFinish.credentialFinalization}")
+            } catch (e: Exception) {
+                Log.d("OpaqueDemo", "Error creating session: $e")
+            }
 
 
         }

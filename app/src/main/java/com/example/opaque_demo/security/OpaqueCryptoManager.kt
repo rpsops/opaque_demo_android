@@ -96,7 +96,7 @@ class OpaqueCryptoManager(private val context: Context) {
     fun generateNonce(): String {
         val nonceBytes = ByteArray(32)
         SecureRandom().nextBytes(nonceBytes)
-        return java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(nonceBytes)
+        return nonceBytes.joinToString("") { "%02x".format(it) }
     }
     
     private fun getPayloadWrapper(type: String, nonce: String, encryptedPayload: ByteArray) =

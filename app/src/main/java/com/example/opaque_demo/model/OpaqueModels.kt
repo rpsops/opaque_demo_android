@@ -33,16 +33,6 @@ data class ServerPayloadWrapper(
 )
 
 @Serializable
-data class RequestPayload(
-    val protocol: String,
-    val state: String,
-    @Serializable(with = Base64ByteArraySerializer::class)
-    val authorization: ByteArray?,
-    @Serializable(with = Base64ByteArraySerializer::class)
-    val req: ByteArray,
-)
-
-@Serializable
 data class ServerResponsePayload(
     @Serializable(with = Base64ByteArraySerializer::class)
     val resp: ByteArray? = null,

@@ -4,13 +4,14 @@ import android.content.Context
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.opaque_demo.model.RequestPayload
+import com.example.opaque_demo.model.RequestPayloadBuilder
 import com.example.opaque_demo.network.OpaqueService
 import com.example.opaque_demo.security.OpaqueCryptoManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import se.digg.opaque_ke_uniffi.ClientLoginFinishResult
 import se.digg.opaque_ke_uniffi.clientLoginFinish
 import se.digg.opaque_ke_uniffi.clientLoginStart
 import se.digg.opaque_ke_uniffi.clientRegistrationFinish
@@ -64,8 +65,10 @@ class RegisterViewModel : ViewModel() {
             val clientRegStartResult = clientRegistrationStart(byteArrayOf(1, 2, 3))
 
             // create the payload
-            val evaluatePayload =
-                RequestPayload("opaque", "evaluate", null, clientRegStartResult.registrationRequest)
+            val evaluatePayload = RequestPayloadBuilder()
+                .setState("evaluate")
+                .setReq(clientRegStartResult.registrationRequest)
+                .build()
 
             // encrypt the payload
             val encryptedPayload = cryptoManager.encryptPayload(evaluatePayload)
@@ -84,9 +87,6 @@ class RegisterViewModel : ViewModel() {
 
             val registrationResponse = cryptoManager.decryptServerPayload(serverPayloadWrapper)
 
-//            val hex = registrationResponse.resp!!.joinToString("") { "%02x".format(it) }
-//            Log.d("OpaqueDemo", "Hex value is : $hex")
-
             // Client finish
             val clientRegFinishResult = clientRegistrationFinish(
                 byteArrayOf(1, 2, 3),
@@ -95,13 +95,11 @@ class RegisterViewModel : ViewModel() {
             )
 
             // create the payload
-            val finalizePayload =
-                RequestPayload(
-                    "opaque",
-                    "finalize",
-                    authz,
-                    clientRegFinishResult.registrationUpload
-                )
+            val finalizePayload = RequestPayloadBuilder()
+                .setState("finalize")
+                .setAuthorization(authz)
+                .setReq(clientRegFinishResult.registrationUpload)
+                .build()
 
             val finalizeNonce = cryptoManager.generateNonce()
 
@@ -131,14 +129,14 @@ class RegisterViewModel : ViewModel() {
         viewModelScope.launch(Dispatchers.IO) {
             val cryptoManager = OpaqueCryptoManager(context)
 
+            // client start
             val clientLoginStart = clientLoginStart(byteArrayOf(1, 2, 3))
 
-            Log.d("OpaqueDemo", clientLoginStart.credentialRequest.joinToString { "%02x".format(it) })
-            Log.d("OpaqueDemo", "ClientLoginStart: ${clientLoginStart.credentialRequest.contentToString()}")
-
             // create the payload
-            val evaluatePayload =
-                RequestPayload("opaque", "evaluate", null, clientLoginStart.credentialRequest)
+            val evaluatePayload = RequestPayloadBuilder()
+                .setState("evaluate")
+                .setReq(clientLoginStart.credentialRequest)
+                .build()
 
             // encrypt the payload
             val encryptedPayload = cryptoManager.encryptPayload(evaluatePayload)
@@ -154,26 +152,57 @@ class RegisterViewModel : ViewModel() {
 
             // handle server evaluate response
             val serverPayloadWrapper = cryptoManager.extractPayloadWrapper(serverEvaluateResponse)
+
             val loginEvaluateResponse = cryptoManager.decryptServerPayload(serverPayloadWrapper)
 
-            val resp = loginEvaluateResponse.resp!!
-            Log.d("OpaqueDemo", "Response is : ${resp.contentToString()}")
-            val hex = resp.joinToString("") { "%02x".format(it) }
-            Log.d("OpaqueDemo", "Hex value is : $hex")
-
+            lateinit var clientLoginFinish: ClientLoginFinishResult
             // client finish
             try {
-                val clientLoginFinish = clientLoginFinish(
-                    loginEvaluateResponse.resp,
+                clientLoginFinish = clientLoginFinish(
+                    loginEvaluateResponse.resp!!,
                     clientLoginStart.clientRegistration,
-                    byteArrayOf(1, 2, 3)
+                    byteArrayOf(1, 2, 3),
+                    "RPS-Ops".toByteArray(),
+                    "https://wallets/digg.se/1234567890".toByteArray(),
+                    "https://cloud-wallet.digg.se/rhsm".toByteArray()
                 )
-                Log.d("OpaqueDemo", "Session created: ${clientLoginFinish.credentialFinalization}")
             } catch (e: Exception) {
-                Log.d("OpaqueDemo", "Error creating session: $e")
+                Log.e("OpaqueDemo", "Error creating session", e)
+                return@launch
             }
 
+            // create finalize payload
+            val finalizePayload = RequestPayloadBuilder()
+                .setState("finalize")
+                .setTask("general")
+                .setReq(clientLoginFinish.credentialFinalization)
+                .build()
 
+
+            val finalizeNonce = cryptoManager.generateNonce()
+
+            val finalizeEncryptedPayload = cryptoManager.encryptPayload(finalizePayload)
+
+            // wrap and sign
+            val signedFinalizeJws = cryptoManager.createSignedJws(
+                "authenticate",
+                finalizeNonce,
+                finalizeEncryptedPayload
+            )
+
+            // send finalize
+            val serverFinalizeResponse = service.sendRequest(signedFinalizeJws.serialize())
+
+            // handle finalize response
+            val serverFinalizePayloadWrapper =
+                cryptoManager.extractPayloadWrapper(serverFinalizeResponse)
+
+            val serverFinalizePayload =
+                cryptoManager.decryptServerPayload(serverFinalizePayloadWrapper)
+
+            // todo possibly check msg?
+
+            val sessionKey = clientLoginFinish.sessionKey
         }
     }
 
@@ -183,7 +212,7 @@ class RegisterViewModel : ViewModel() {
     fun localRegister() {
         val clientRegStartResult = clientRegistrationStart(byteArrayOf(1, 2, 3))
 
-        val serverSetup = serverSetup();
+        val serverSetup = serverSetup()
         val serverRegStartResult =
             serverRegistrationStart(
                 serverSetup,
@@ -216,7 +245,10 @@ class RegisterViewModel : ViewModel() {
         val clientLoginFinish = clientLoginFinish(
             serverLoginStart.credentialResponse,
             clientLoginStart.clientRegistration,
-            byteArrayOf(1, 2, 3)
+            byteArrayOf(1, 2, 3),
+            byteArrayOf(),
+            byteArrayOf(),
+            byteArrayOf()
         )
         val endClient2 = System.currentTimeMillis()
 

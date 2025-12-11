@@ -37,9 +37,10 @@ class OpaqueCryptoManager(private val context: Context) {
     fun createSignedJws(
         type: String,
         nonce: String,
-        encryptedPayload: ByteArray
+        encryptedPayload: ByteArray,
+        pakeSessionId: String?
     ): JWSObject {
-        val payloadWrapper = getPayloadWrapper(type, nonce, encryptedPayload)
+        val payloadWrapper = getPayloadWrapper(type, nonce, encryptedPayload, pakeSessionId)
         
         // create JWSObject
         val header = JWSHeader.Builder(JWSAlgorithm.ES256).type(JOSEObjectType.JOSE).build()
@@ -99,13 +100,13 @@ class OpaqueCryptoManager(private val context: Context) {
         return nonceBytes.joinToString("") { "%02x".format(it) }
     }
     
-    private fun getPayloadWrapper(type: String, nonce: String, encryptedPayload: ByteArray) =
+    private fun getPayloadWrapper(type: String, nonce: String, encryptedPayload: ByteArray, pakeSessionId: String?) =
         PayloadWrapper(
             "https://wallets/digg.se/1234567890",
             "wallet-hsm-key-1",
             "hsm",
             type,
-            null,
+            pakeSessionId,
             "1.0",
             nonce,
             Instant.now(),

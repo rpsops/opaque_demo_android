@@ -16,11 +16,6 @@ import se.digg.opaque_ke_uniffi.clientLoginFinish
 import se.digg.opaque_ke_uniffi.clientLoginStart
 import se.digg.opaque_ke_uniffi.clientRegistrationFinish
 import se.digg.opaque_ke_uniffi.clientRegistrationStart
-import se.digg.opaque_ke_uniffi.serverLoginFinish
-import se.digg.opaque_ke_uniffi.serverLoginStart
-import se.digg.opaque_ke_uniffi.serverRegistrationFinish
-import se.digg.opaque_ke_uniffi.serverRegistrationStart
-import se.digg.opaque_ke_uniffi.serverSetup
 import java.security.SecureRandom
 
 class RegisterViewModel : ViewModel() {
@@ -47,7 +42,12 @@ class RegisterViewModel : ViewModel() {
             val nonce = cryptoManager.generateNonce()
 
             val signedJws =
-                cryptoManager.createSignedJws("register-authorization", nonce, encryptedPayload)
+                cryptoManager.createSignedJws(
+                    "register-authorization",
+                    nonce,
+                    encryptedPayload,
+                    null
+                )
 
             val registerResponse = service.sendRequest(signedJws.serialize())
             // We don't care about the result. This is just for testing
@@ -77,7 +77,7 @@ class RegisterViewModel : ViewModel() {
 
             // sign the payload
             val signedJws =
-                cryptoManager.createSignedJws("pin_registration", evalNonce, encryptedPayload)
+                cryptoManager.createSignedJws("pin_registration", evalNonce, encryptedPayload, null)
 
             // send evaluate to server
             val serverEvaluateResponse = service.sendRequest(signedJws.serialize())
@@ -91,7 +91,9 @@ class RegisterViewModel : ViewModel() {
             val clientRegFinishResult = clientRegistrationFinish(
                 byteArrayOf(1, 2, 3),
                 clientRegStartResult.clientRegistration,
-                registrationResponse.resp!!
+                registrationResponse.resp!!,
+                "https://wallets/digg.se/1234567890".toByteArray(),
+                "https://cloud-wallet.digg.se/rhsm".toByteArray()
             )
 
             // create the payload
@@ -108,7 +110,8 @@ class RegisterViewModel : ViewModel() {
             val signedFinalizeJws = cryptoManager.createSignedJws(
                 "pin_registration",
                 finalizeNonce,
-                finalizeEncryptedPayload
+                finalizeEncryptedPayload,
+                null
             )
 
             // send finalize to server
@@ -145,7 +148,7 @@ class RegisterViewModel : ViewModel() {
 
             // sign the payload
             val signedJws =
-                cryptoManager.createSignedJws("authenticate", evalNonce, encryptedPayload)
+                cryptoManager.createSignedJws("authenticate", evalNonce, encryptedPayload, null)
 
             // send evaluate to server
             val serverEvaluateResponse = service.sendRequest(signedJws.serialize())
@@ -174,7 +177,7 @@ class RegisterViewModel : ViewModel() {
             // create finalize payload
             val finalizePayload = RequestPayloadBuilder()
                 .setState("finalize")
-                .setTask("general")
+//                .setTask("general")
                 .setReq(clientLoginFinish.credentialFinalization)
                 .build()
 
@@ -187,7 +190,8 @@ class RegisterViewModel : ViewModel() {
             val signedFinalizeJws = cryptoManager.createSignedJws(
                 "authenticate",
                 finalizeNonce,
-                finalizeEncryptedPayload
+                finalizeEncryptedPayload,
+                loginEvaluateResponse.pake_session_id
             )
 
             // send finalize
@@ -200,9 +204,14 @@ class RegisterViewModel : ViewModel() {
             val serverFinalizePayload =
                 cryptoManager.decryptServerPayload(serverFinalizePayloadWrapper)
 
-            // todo possibly check msg?
+            Log.d("OpaqueDemo", "Session created: ${serverFinalizePayload.msg!!}")
 
             val sessionKey = clientLoginFinish.sessionKey
+            Log.d("OpaqueDemo", "Session key: ${sessionKey.contentToString()}")
+            Log.d(
+                "OpaqueDemo",
+                "Session key hex: ${sessionKey.joinToString("") { "%02x".format(it) }}"
+            )
         }
     }
 
@@ -210,64 +219,64 @@ class RegisterViewModel : ViewModel() {
      * Run the opaque process locally, without calling any server
      */
     fun localRegister() {
-        val clientRegStartResult = clientRegistrationStart(byteArrayOf(1, 2, 3))
-
-        val serverSetup = serverSetup()
-        val serverRegStartResult =
-            serverRegistrationStart(
-                serverSetup,
-                clientRegStartResult.registrationRequest,
-                byteArrayOf(1, 2)
-            )
-
-        val clientRegFinishResult = clientRegistrationFinish(
-            byteArrayOf(1, 2, 3),
-            clientRegStartResult.clientRegistration,
-            serverRegStartResult
-        )
-
-        val passwordFile =
-            serverRegistrationFinish(clientRegFinishResult.registrationUpload)
-
-        val startTime = System.currentTimeMillis()
-
-        val clientLoginStart = clientLoginStart(byteArrayOf(1, 2, 3))
-
-        val endClient1 = System.currentTimeMillis()
-        val serverLoginStart = serverLoginStart(
-            serverSetup,
-            passwordFile,
-            clientLoginStart.credentialRequest,
-            byteArrayOf(1, 2)
-        )
-
-        val startClient = System.currentTimeMillis()
-        val clientLoginFinish = clientLoginFinish(
-            serverLoginStart.credentialResponse,
-            clientLoginStart.clientRegistration,
-            byteArrayOf(1, 2, 3),
-            byteArrayOf(),
-            byteArrayOf(),
-            byteArrayOf()
-        )
-        val endClient2 = System.currentTimeMillis()
-
-        val clientSessionKey = clientLoginFinish.sessionKey
-
-        val serverLoginFinish = serverLoginFinish(
-            serverLoginStart.serverLogin,
-            clientLoginFinish.credentialFinalization
-        )
-
-        val serverSessionKey = serverLoginFinish
-
-        val endTime = System.currentTimeMillis()
-        Log.d("OpaqueDemo", "Opaque process took ${endTime - startTime} ms")
-        Log.d(
-            "OpaqueDemo",
-            "Client took ${(endClient1 - startTime) + (endClient2 - startClient)} ms"
-        )
-        _result.value =
-            "Opaque process took ${endTime - startTime} ms\n Client took ${(endClient1 - startTime) + (endClient2 - startClient)} ms"
+//        val clientRegStartResult = clientRegistrationStart(byteArrayOf(1, 2, 3))
+//
+//        val serverSetup = serverSetup()
+//        val serverRegStartResult =
+//            serverRegistrationStart(
+//                serverSetup,
+//                clientRegStartResult.registrationRequest,
+//                byteArrayOf(1, 2)
+//            )
+//
+//        val clientRegFinishResult = clientRegistrationFinish(
+//            byteArrayOf(1, 2, 3),
+//            clientRegStartResult.clientRegistration,
+//            serverRegStartResult
+//        )
+//
+//        val passwordFile =
+//            serverRegistrationFinish(clientRegFinishResult.registrationUpload)
+//
+//        val startTime = System.currentTimeMillis()
+//
+//        val clientLoginStart = clientLoginStart(byteArrayOf(1, 2, 3))
+//
+//        val endClient1 = System.currentTimeMillis()
+//        val serverLoginStart = serverLoginStart(
+//            serverSetup,
+//            passwordFile,
+//            clientLoginStart.credentialRequest,
+//            byteArrayOf(1, 2)
+//        )
+//
+//        val startClient = System.currentTimeMillis()
+//        val clientLoginFinish = clientLoginFinish(
+//            serverLoginStart.credentialResponse,
+//            clientLoginStart.clientRegistration,
+//            byteArrayOf(1, 2, 3),
+//            byteArrayOf(),
+//            byteArrayOf(),
+//            byteArrayOf()
+//        )
+//        val endClient2 = System.currentTimeMillis()
+//
+//        val clientSessionKey = clientLoginFinish.sessionKey
+//
+//        val serverLoginFinish = serverLoginFinish(
+//            serverLoginStart.serverLogin,
+//            clientLoginFinish.credentialFinalization
+//        )
+//
+//        val serverSessionKey = serverLoginFinish
+//
+//        val endTime = System.currentTimeMillis()
+//        Log.d("OpaqueDemo", "Opaque process took ${endTime - startTime} ms")
+//        Log.d(
+//            "OpaqueDemo",
+//            "Client took ${(endClient1 - startTime) + (endClient2 - startClient)} ms"
+//        )
+//        _result.value =
+//            "Opaque process took ${endTime - startTime} ms\n Client took ${(endClient1 - startTime) + (endClient2 - startClient)} ms"
     }
 }

@@ -37,5 +37,8 @@ data class ServerResponsePayload(
     @Serializable(with = Base64ByteArraySerializer::class)
     val resp: ByteArray? = null,
     val msg: String? = null,
-    val pake_session_id: String? = null
+    val pake_session_id: String? = null,
+    val task: String? = null,
+    @Serializable(with = InstantEpochSecondsSerializer::class)
+    val session_expiration_time: Instant? = null
 )

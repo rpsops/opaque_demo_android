@@ -190,7 +190,7 @@ class RegisterViewModel : ViewModel() {
             // create finalize payload
             val finalizePayload = RequestPayloadBuilder()
                 .setState(OpaqueOperationState.FINALIZE.state)
-//                .setTask("general")
+                .setTask("general")
                 .setReq(clientLoginFinish.credentialFinalization)
                 .build()
 

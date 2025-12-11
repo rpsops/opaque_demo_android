@@ -56,7 +56,7 @@ fun Buttons(modifier: Modifier = Modifier, viewModel: RegisterViewModel = viewMo
             Text(text = "Create session")
         }
         Button(onClick = { viewModel.localRegister() }) {
-            Text(text = "Local register")
+            Text(text = "Local test")
         }
 
 

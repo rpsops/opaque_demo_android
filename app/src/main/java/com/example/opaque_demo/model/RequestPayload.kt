@@ -9,7 +9,7 @@ data class RequestPayload(
     val protocol: String,
     val state: String,
     val task: String?,
-    // todo there is also a Duration that could optionally be sent.
+    // there is also a session_duration: Duration that could optionally be sent.
     @Serializable(with = Base64ByteArraySerializer::class)
     val authorization: ByteArray?,
     @Serializable(with = Base64ByteArraySerializer::class)

@@ -34,11 +34,12 @@ class OpaqueCryptoManager(private val context: Context) {
     private val serverPublicKey: ECPublicKey by lazy { getServerPublicKey(context) }
     private val clientPrivateKey: ECPrivateKey by lazy { getClientPrivateKey(context) }
 
+    // todo maybe clean up the pakeSessionId?
     fun createSignedJws(
         type: String,
         nonce: String,
         encryptedPayload: ByteArray,
-        pakeSessionId: String?
+        pakeSessionId: String? = null
     ): JWSObject {
         val payloadWrapper = getPayloadWrapper(type, nonce, encryptedPayload, pakeSessionId)
         

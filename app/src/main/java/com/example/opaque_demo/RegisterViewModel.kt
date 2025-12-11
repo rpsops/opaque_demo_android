@@ -30,6 +30,10 @@ class RegisterViewModel : ViewModel() {
 
     private val service = OpaqueService()
 
+    val clientIdentifier = "https://wallets/digg.se/1234567890".toByteArray()
+    val serverIdentifier = "https://cloud-wallet.digg.se/rhsm".toByteArray()
+    val opaqueContext = "RPS-Ops".toByteArray()
+
     private val _result = MutableStateFlow<String?>(null)
     val result = _result.asStateFlow()
 
@@ -42,7 +46,7 @@ class RegisterViewModel : ViewModel() {
      */
     fun registerAuthentication(context: Context) {
         viewModelScope.launch(Dispatchers.IO) {
-            val cryptoManager = OpaqueCryptoManager(context)
+            val cryptoManager = OpaqueCryptoManager(context, String(clientIdentifier))
 
             SecureRandom().nextBytes(authenticationCode)
             val encryptedPayload = cryptoManager.encryptBytes(authenticationCode)
@@ -66,7 +70,7 @@ class RegisterViewModel : ViewModel() {
      */
     fun registerPin(context: Context) {
         viewModelScope.launch(Dispatchers.IO) {
-            val cryptoManager = OpaqueCryptoManager(context)
+            val cryptoManager = OpaqueCryptoManager(context, String(clientIdentifier))
 
             // Client start
             val clientRegStartResult = clientRegistrationStart(byteArrayOf(1, 2, 3))
@@ -103,8 +107,8 @@ class RegisterViewModel : ViewModel() {
                 byteArrayOf(1, 2, 3),
                 clientRegStartResult.clientRegistration,
                 registrationResponse.resp!!,
-                "https://wallets/digg.se/1234567890".toByteArray(),
-                "https://cloud-wallet.digg.se/rhsm".toByteArray()
+                clientIdentifier,
+                serverIdentifier
             )
 
             // create the payload
@@ -140,7 +144,7 @@ class RegisterViewModel : ViewModel() {
 
     fun createSession(context: Context) {
         viewModelScope.launch(Dispatchers.IO) {
-            val cryptoManager = OpaqueCryptoManager(context)
+            val cryptoManager = OpaqueCryptoManager(context, String(clientIdentifier))
 
             // client start
             val clientLoginStart = clientLoginStart(byteArrayOf(1, 2, 3))
@@ -172,16 +176,16 @@ class RegisterViewModel : ViewModel() {
 
             val loginEvaluateResponse = cryptoManager.decryptServerPayload(serverPayloadWrapper)
 
-            lateinit var clientLoginFinish: ClientLoginFinishResult
             // client finish
+            lateinit var clientLoginFinish: ClientLoginFinishResult
             try {
                 clientLoginFinish = clientLoginFinish(
                     loginEvaluateResponse.resp!!,
                     clientLoginStart.clientRegistration,
                     byteArrayOf(1, 2, 3),
-                    "RPS-Ops".toByteArray(),
-                    "https://wallets/digg.se/1234567890".toByteArray(),
-                    "https://cloud-wallet.digg.se/rhsm".toByteArray()
+                    opaqueContext,
+                    clientIdentifier,
+                    serverIdentifier
                 )
             } catch (e: Exception) {
                 Log.e("OpaqueDemo", "Error creating session", e)
@@ -231,9 +235,6 @@ class RegisterViewModel : ViewModel() {
      * Run the opaque process locally, without calling any server
      */
     fun localRegister() {
-        val clientId = "clientId".toByteArray()
-        val serverId = "serverId".toByteArray()
-        val context = "context".toByteArray()
 
         val serverSetup = serverSetup()
 
@@ -244,15 +245,15 @@ class RegisterViewModel : ViewModel() {
             serverRegistrationStart(
                 serverSetup,
                 clientRegStartResult.registrationRequest,
-                clientId
+                clientIdentifier
             )
 
         val clientRegFinishResult = clientRegistrationFinish(
             byteArrayOf(1, 2, 3),
             clientRegStartResult.clientRegistration,
             serverRegStartResult,
-            clientId,
-            serverId
+            clientIdentifier,
+            serverIdentifier
         )
 
         val passwordFile =
@@ -266,27 +267,27 @@ class RegisterViewModel : ViewModel() {
             serverSetup,
             passwordFile,
             clientLoginStart.credentialRequest,
-            clientId,
-            context,
-            clientId,
-            serverId
+            clientIdentifier,
+            opaqueContext,
+            clientIdentifier,
+            serverIdentifier
         )
 
         val clientLoginFinish = clientLoginFinish(
             serverLoginStart.credentialResponse,
             clientLoginStart.clientRegistration,
             byteArrayOf(1, 2, 3),
-            context,
-            clientId,
-            serverId
+            opaqueContext,
+            clientIdentifier,
+            serverIdentifier
         )
 
         val serverLoginFinish = serverLoginFinish(
             serverLoginStart.serverLogin,
             clientLoginFinish.credentialFinalization,
-            context,
-            clientId,
-            serverId,
+            opaqueContext,
+            clientIdentifier,
+            serverIdentifier,
         )
 
         // server and client has (hopefully) agreed on a session key

@@ -30,7 +30,7 @@ import java.security.interfaces.ECPrivateKey
 import java.security.interfaces.ECPublicKey
 import java.time.Instant
 
-class OpaqueCryptoManager(private val context: Context) {
+class OpaqueCryptoManager(private val context: Context, private val clientIdentifier: String) {
 
     private val serverPublicKey: ECPublicKey by lazy { getServerPublicKey(context) }
     private val clientPrivateKey: ECPrivateKey by lazy { getClientPrivateKey(context) }
@@ -103,7 +103,7 @@ class OpaqueCryptoManager(private val context: Context) {
         pakeSessionId: String?
     ) =
         PayloadWrapper(
-            "https://wallets/digg.se/1234567890",
+            clientIdentifier,
             "wallet-hsm-key-1",
             "hsm",
             type,

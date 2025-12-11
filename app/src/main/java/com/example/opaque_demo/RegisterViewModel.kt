@@ -4,6 +4,8 @@ import android.content.Context
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.opaque_demo.model.OpaqueOperationState
+import com.example.opaque_demo.model.OpaqueOperationType
 import com.example.opaque_demo.model.RequestPayloadBuilder
 import com.example.opaque_demo.network.OpaqueService
 import com.example.opaque_demo.security.OpaqueCryptoManager
@@ -48,7 +50,7 @@ class RegisterViewModel : ViewModel() {
 
             val signedJws =
                 cryptoManager.createSignedJws(
-                    "register-authorization",
+                    OpaqueOperationType.REGISTER_AUTHORIZATION.type,
                     nonce,
                     encryptedPayload
                 )
@@ -70,7 +72,7 @@ class RegisterViewModel : ViewModel() {
 
             // create the payload
             val evaluatePayload = RequestPayloadBuilder()
-                .setState("evaluate")
+                .setState(OpaqueOperationState.EVALUATE.state)
                 .setReq(clientRegStartResult.registrationRequest)
                 .build()
 
@@ -81,7 +83,11 @@ class RegisterViewModel : ViewModel() {
 
             // sign the payload
             val signedJws =
-                cryptoManager.createSignedJws("pin_registration", evalNonce, encryptedPayload)
+                cryptoManager.createSignedJws(
+                    OpaqueOperationType.PIN_REGISTRATION.type,
+                    evalNonce,
+                    encryptedPayload
+                )
 
             // send evaluate to server
             val serverEvaluateResponse = service.sendRequest(signedJws.serialize())
@@ -102,7 +108,7 @@ class RegisterViewModel : ViewModel() {
 
             // create the payload
             val finalizePayload = RequestPayloadBuilder()
-                .setState("finalize")
+                .setState(OpaqueOperationState.FINALIZE.state)
                 .setAuthorization(authenticationCode)
                 .setReq(clientRegFinishResult.registrationUpload)
                 .build()
@@ -112,7 +118,7 @@ class RegisterViewModel : ViewModel() {
             // wrap and sign the payload
             val finalizeEncryptedPayload = cryptoManager.encryptPayload(finalizePayload)
             val signedFinalizeJws = cryptoManager.createSignedJws(
-                "pin_registration",
+                OpaqueOperationType.PIN_REGISTRATION.type,
                 finalizeNonce,
                 finalizeEncryptedPayload
             )
@@ -140,7 +146,7 @@ class RegisterViewModel : ViewModel() {
 
             // create the payload
             val evaluatePayload = RequestPayloadBuilder()
-                .setState("evaluate")
+                .setState(OpaqueOperationState.EVALUATE.state)
                 .setReq(clientLoginStart.credentialRequest)
                 .build()
 
@@ -151,7 +157,11 @@ class RegisterViewModel : ViewModel() {
 
             // sign the payload
             val signedJws =
-                cryptoManager.createSignedJws("authenticate", evalNonce, encryptedPayload)
+                cryptoManager.createSignedJws(
+                    OpaqueOperationType.AUTHENTICATE.type,
+                    evalNonce,
+                    encryptedPayload
+                )
 
             // send evaluate to server
             val serverEvaluateResponse = service.sendRequest(signedJws.serialize())
@@ -179,7 +189,7 @@ class RegisterViewModel : ViewModel() {
 
             // create finalize payload
             val finalizePayload = RequestPayloadBuilder()
-                .setState("finalize")
+                .setState(OpaqueOperationState.FINALIZE.state)
 //                .setTask("general")
                 .setReq(clientLoginFinish.credentialFinalization)
                 .build()
@@ -191,7 +201,7 @@ class RegisterViewModel : ViewModel() {
 
             // wrap and sign
             val signedFinalizeJws = cryptoManager.createSignedJws(
-                "authenticate",
+                OpaqueOperationType.AUTHENTICATE.type,
                 finalizeNonce,
                 finalizeEncryptedPayload,
                 loginEvaluateResponse.pake_session_id
@@ -257,8 +267,8 @@ class RegisterViewModel : ViewModel() {
             clientLoginStart.credentialRequest,
             clientId,
             context,
+            clientId,
             serverId
-
         )
 
         val clientLoginFinish = clientLoginFinish(

@@ -6,6 +6,7 @@ import com.example.opaque_demo.model.PayloadWrapper
 import com.example.opaque_demo.model.RequestPayload
 import com.example.opaque_demo.model.ServerPayloadWrapper
 import com.example.opaque_demo.model.ServerResponsePayload
+import com.example.opaque_demo.utils.toHexString
 import com.nimbusds.jose.EncryptionMethod
 import com.nimbusds.jose.JOSEObjectType
 import com.nimbusds.jose.JWEAlgorithm
@@ -41,7 +42,7 @@ class OpaqueCryptoManager(private val context: Context) {
         pakeSessionId: String? = null
     ): JWSObject {
         val payloadWrapper = getPayloadWrapper(type, nonce, encryptedPayload, pakeSessionId)
-        
+
         // create JWSObject
         val header = JWSHeader.Builder(JWSAlgorithm.ES256).type(JOSEObjectType.JOSE).build()
         val serializedPayload = Payload(Json.encodeToString(payloadWrapper).toByteArray())
@@ -79,28 +80,28 @@ class OpaqueCryptoManager(private val context: Context) {
         }
 
         // get the PayloadWrapper
-        val serverPayloadWrapper =
-            Json.decodeFromString<ServerPayloadWrapper>(serverResponseJws.payload.toString())
-
-        return serverPayloadWrapper
+        return Json.decodeFromString<ServerPayloadWrapper>(serverResponseJws.payload.toString())
     }
 
     fun decryptServerPayload(serverPayloadWrapper: ServerPayloadWrapper): ServerResponsePayload {
         val payloadJwe = JWEObject.parse(String(serverPayloadWrapper.data))
         val decryptor = ECDHDecrypter(clientPrivateKey)
         payloadJwe.decrypt(decryptor)
-        val payload =
-            Json.decodeFromString<ServerResponsePayload>(payloadJwe.payload.toString())
-        return payload
+        return Json.decodeFromString<ServerResponsePayload>(payloadJwe.payload.toString())
     }
 
     fun generateNonce(): String {
         val nonceBytes = ByteArray(32)
         SecureRandom().nextBytes(nonceBytes)
-        return nonceBytes.joinToString("") { "%02x".format(it) }
+        return nonceBytes.toHexString()
     }
-    
-    private fun getPayloadWrapper(type: String, nonce: String, encryptedPayload: ByteArray, pakeSessionId: String?) =
+
+    private fun getPayloadWrapper(
+        type: String,
+        nonce: String,
+        encryptedPayload: ByteArray,
+        pakeSessionId: String?
+    ) =
         PayloadWrapper(
             "https://wallets/digg.se/1234567890",
             "wallet-hsm-key-1",

@@ -9,6 +9,7 @@ import com.example.opaque_demo.model.OpaqueOperationType
 import com.example.opaque_demo.model.RequestPayloadBuilder
 import com.example.opaque_demo.network.OpaqueService
 import com.example.opaque_demo.security.OpaqueCryptoManager
+import com.example.opaque_demo.utils.toHexString
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -220,7 +221,7 @@ class RegisterViewModel : ViewModel() {
             Log.d("OpaqueDemo", "Session created: ${serverFinalizePayload.msg!!}")
 
             _result.value =
-                "Session key: \n${clientLoginFinish.sessionKey.joinToString("") { "%02x".format(it) }}"
+                "Session key: \n${clientLoginFinish.sessionKey.toHexString()}"
 
             Log.d("OpaqueDemo", "Session key: ${clientLoginFinish.sessionKey.contentToString()}")
         }
@@ -291,7 +292,7 @@ class RegisterViewModel : ViewModel() {
         // server and client has (hopefully) agreed on a session key
         if (serverLoginFinish.contentEquals(clientLoginFinish.sessionKey)) {
             _result.value = "In a local test the server and client agreed on session key: ${
-                serverLoginFinish.joinToString("") { "%02x".format(it) }
+                serverLoginFinish.toHexString()
             }"
         } else {
             Log.e(

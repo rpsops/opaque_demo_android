@@ -7,6 +7,8 @@ import androidx.lifecycle.viewModelScope
 import com.example.opaque_demo.model.OpaqueOperationState
 import com.example.opaque_demo.model.OpaqueOperationType
 import com.example.opaque_demo.model.RequestPayloadBuilder
+import com.example.opaque_demo.model.ServerPayloadWrapper
+import com.example.opaque_demo.model.ServerResponsePayload
 import com.example.opaque_demo.network.OpaqueService
 import com.example.opaque_demo.security.OpaqueCryptoManager
 import com.example.opaque_demo.utils.toHexString
@@ -25,6 +27,7 @@ import se.digg.opaque_ke_uniffi.serverRegistrationFinish
 import se.digg.opaque_ke_uniffi.serverRegistrationStart
 import se.digg.opaque_ke_uniffi.serverSetup
 import java.security.SecureRandom
+import java.time.Instant
 
 class RegisterViewModel : ViewModel() {
 
@@ -37,7 +40,7 @@ class RegisterViewModel : ViewModel() {
     private val _result = MutableStateFlow<String?>(null)
     val result = _result.asStateFlow()
 
-    val authenticationCode: ByteArray = ByteArray(16)
+    val authorizationCode: ByteArray = ByteArray(16)
 
 
     /**
@@ -48,8 +51,8 @@ class RegisterViewModel : ViewModel() {
         viewModelScope.launch(Dispatchers.IO) {
             val cryptoManager = OpaqueCryptoManager(context, String(clientIdentifier))
 
-            SecureRandom().nextBytes(authenticationCode)
-            val encryptedPayload = cryptoManager.encryptBytes(authenticationCode)
+            SecureRandom().nextBytes(authorizationCode)
+            val encryptedPayload = cryptoManager.encryptBytes(authorizationCode)
 
             val nonce = cryptoManager.generateNonce()
 
@@ -57,7 +60,8 @@ class RegisterViewModel : ViewModel() {
                 cryptoManager.createSignedJws(
                     OpaqueOperationType.REGISTER_AUTHORIZATION.type,
                     nonce,
-                    encryptedPayload
+                    encryptedPayload,
+                    null
                 )
 
             val registerResponse = service.sendRequest(signedJws.serialize())
@@ -75,32 +79,12 @@ class RegisterViewModel : ViewModel() {
             // Client start
             val clientRegStartResult = clientRegistrationStart(byteArrayOf(1, 2, 3))
 
-            // create the payload
-            val evaluatePayload = RequestPayloadBuilder()
-                .setState(OpaqueOperationState.EVALUATE.state)
-                .setReq(clientRegStartResult.registrationRequest)
-                .build()
-
-            // encrypt the payload
-            val encryptedPayload = cryptoManager.encryptPayload(evaluatePayload)
-
-            val evalNonce = cryptoManager.generateNonce()
-
-            // sign the payload
-            val signedJws =
-                cryptoManager.createSignedJws(
-                    OpaqueOperationType.PIN_REGISTRATION.type,
-                    evalNonce,
-                    encryptedPayload
-                )
-
-            // send evaluate to server
-            val serverEvaluateResponse = service.sendRequest(signedJws.serialize())
-
-            // handle server evaluate response
-            val serverPayloadWrapper = cryptoManager.extractPayloadWrapper(serverEvaluateResponse)
-
-            val registrationResponse = cryptoManager.decryptServerPayload(serverPayloadWrapper)
+            val registrationResponse = executeOpaqueRequest(
+                cryptoManager,
+                OpaqueOperationType.PIN_REGISTRATION.type,
+                OpaqueOperationState.EVALUATE.state,
+                clientRegStartResult.registrationRequest,
+            )
 
             // Client finish
             val clientRegFinishResult = clientRegistrationFinish(
@@ -111,32 +95,14 @@ class RegisterViewModel : ViewModel() {
                 serverIdentifier
             )
 
-            // create the payload
-            val finalizePayload = RequestPayloadBuilder()
-                .setState(OpaqueOperationState.FINALIZE.state)
-                .setAuthorization(authenticationCode)
-                .setReq(clientRegFinishResult.registrationUpload)
-                .build()
-
-            val finalizeNonce = cryptoManager.generateNonce()
-
-            // wrap and sign the payload
-            val finalizeEncryptedPayload = cryptoManager.encryptPayload(finalizePayload)
-            val signedFinalizeJws = cryptoManager.createSignedJws(
+            val serverFinalizePayload = executeOpaqueRequest(
+                cryptoManager,
                 OpaqueOperationType.PIN_REGISTRATION.type,
-                finalizeNonce,
-                finalizeEncryptedPayload
-            )
-
-            // send finalize to server
-            val serverFinalizeResponse = service.sendRequest(signedFinalizeJws.serialize())
-
-            // handle server finalize response
-            val serverFinalizePayloadWrapper =
-                cryptoManager.extractPayloadWrapper(serverFinalizeResponse)
-
-            val serverFinalizePayload =
-                cryptoManager.decryptServerPayload(serverFinalizePayloadWrapper)
+                OpaqueOperationState.FINALIZE.state,
+                clientRegFinishResult.registrationUpload
+            ) {
+                setAuthorization(authorizationCode)
+            }
 
             _result.value = "Register pin is: ${serverFinalizePayload.msg!!}"
         }
@@ -149,32 +115,12 @@ class RegisterViewModel : ViewModel() {
             // client start
             val clientLoginStart = clientLoginStart(byteArrayOf(1, 2, 3))
 
-            // create the payload
-            val evaluatePayload = RequestPayloadBuilder()
-                .setState(OpaqueOperationState.EVALUATE.state)
-                .setReq(clientLoginStart.credentialRequest)
-                .build()
-
-            // encrypt the payload
-            val encryptedPayload = cryptoManager.encryptPayload(evaluatePayload)
-
-            val evalNonce = cryptoManager.generateNonce()
-
-            // sign the payload
-            val signedJws =
-                cryptoManager.createSignedJws(
-                    OpaqueOperationType.AUTHENTICATE.type,
-                    evalNonce,
-                    encryptedPayload
-                )
-
-            // send evaluate to server
-            val serverEvaluateResponse = service.sendRequest(signedJws.serialize())
-
-            // handle server evaluate response
-            val serverPayloadWrapper = cryptoManager.extractPayloadWrapper(serverEvaluateResponse)
-
-            val loginEvaluateResponse = cryptoManager.decryptServerPayload(serverPayloadWrapper)
+            val loginEvaluateResponse = executeOpaqueRequest(
+                cryptoManager,
+                OpaqueOperationType.AUTHENTICATE.type,
+                OpaqueOperationState.EVALUATE.state,
+                clientLoginStart.credentialRequest
+            )
 
             // client finish
             lateinit var clientLoginFinish: ClientLoginFinishResult
@@ -192,43 +138,63 @@ class RegisterViewModel : ViewModel() {
                 return@launch
             }
 
-            // create finalize payload
-            val finalizePayload = RequestPayloadBuilder()
-                .setState(OpaqueOperationState.FINALIZE.state)
-                .setTask("general")
-                .setReq(clientLoginFinish.credentialFinalization)
-                .build()
-
-
-            val finalizeNonce = cryptoManager.generateNonce()
-
-            val finalizeEncryptedPayload = cryptoManager.encryptPayload(finalizePayload)
-
-            // wrap and sign
-            val signedFinalizeJws = cryptoManager.createSignedJws(
+            val serverFinalizePayload = executeOpaqueRequest(
+                cryptoManager,
                 OpaqueOperationType.AUTHENTICATE.type,
-                finalizeNonce,
-                finalizeEncryptedPayload,
+                OpaqueOperationState.FINALIZE.state,
+                clientLoginFinish.credentialFinalization,
                 loginEvaluateResponse.pake_session_id
             )
-
-            // send finalize
-            val serverFinalizeResponse = service.sendRequest(signedFinalizeJws.serialize())
-
-            // handle finalize response
-            val serverFinalizePayloadWrapper =
-                cryptoManager.extractPayloadWrapper(serverFinalizeResponse)
-
-            val serverFinalizePayload =
-                cryptoManager.decryptServerPayload(serverFinalizePayloadWrapper)
-
-            Log.d("OpaqueDemo", "Session created: ${serverFinalizePayload.msg!!}")
+            { setTask("general") }
 
             _result.value =
                 "Session key: \n${clientLoginFinish.sessionKey.toHexString()}"
 
             Log.d("OpaqueDemo", "Session key: ${clientLoginFinish.sessionKey.contentToString()}")
         }
+    }
+
+    private suspend fun executeOpaqueRequest(
+        cryptoManager: OpaqueCryptoManager,
+        type: String,
+        state: String,
+        requestBytes: ByteArray,
+        pakeSessionId: String? = null,
+        payloadConfig: (RequestPayloadBuilder.() -> Unit)? = null
+    ): ServerResponsePayload {
+        // create the payload
+        val builder = RequestPayloadBuilder()
+            .setState(state)
+            .setReq(requestBytes)
+
+        payloadConfig?.invoke(builder)
+
+        val payload = builder.build()
+
+        // encrypt the payload
+        val encryptedPayload = cryptoManager.encryptPayload(payload)
+        val nonce = cryptoManager.generateNonce()
+
+        // sign the payload
+        val signedJws = cryptoManager.createSignedJws(type, nonce, encryptedPayload, pakeSessionId)
+
+        // send
+        val response = service.sendRequest(signedJws.serialize())
+
+        // handle response
+        val wrapper = cryptoManager.extractPayloadWrapper(response)
+        verifyWrapper(wrapper, nonce)
+        return cryptoManager.decryptServerPayload(wrapper)
+    }
+
+    fun verifyWrapper(wrapper: ServerPayloadWrapper, nonce: String) {
+        check(wrapper.data.isNotEmpty()) { "No data in response" }
+        check(wrapper.nonce == nonce) { "Nonce mismatch" }
+        // iat must not be more that 10s old and not more than 30s in the future
+        check(
+            wrapper.iat.isAfter(Instant.now().minusSeconds(10)) &&
+                    wrapper.iat.isBefore(Instant.now().plusSeconds(30))
+        ) { "Timestamp outside valid window" }
     }
 
     /**

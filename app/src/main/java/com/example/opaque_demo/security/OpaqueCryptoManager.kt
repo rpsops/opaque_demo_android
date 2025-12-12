@@ -39,7 +39,7 @@ class OpaqueCryptoManager(private val context: Context, private val clientIdenti
         type: String,
         nonce: String,
         encryptedPayload: ByteArray,
-        pakeSessionId: String? = null
+        pakeSessionId: String?
     ): JWSObject {
         val payloadWrapper = getPayloadWrapper(type, nonce, encryptedPayload, pakeSessionId)
 

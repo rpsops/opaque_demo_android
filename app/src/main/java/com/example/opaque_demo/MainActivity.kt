@@ -38,7 +38,6 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun Buttons(modifier: Modifier = Modifier, viewModel: RegisterViewModel = viewModel()) {
-    val context = LocalContext.current
     Column(
         modifier = modifier.fillMaxSize(),
         verticalArrangement = Arrangement.Center,
@@ -46,19 +45,15 @@ fun Buttons(modifier: Modifier = Modifier, viewModel: RegisterViewModel = viewMo
     ) {
         val result by viewModel.result.collectAsState()
 
-        Button(onClick = { viewModel.registerAuthentication(context) }) {
+        Button(onClick = { viewModel.registerAuthentication() }) {
             Text(text = "Register auth code")
         }
-        Button(onClick = { viewModel.registerPin(context) }) {
+        Button(onClick = { viewModel.registerPin() }) {
             Text(text = "Register pin")
         }
-        Button(onClick = { viewModel.createSession(context) }) {
+        Button(onClick = { viewModel.createSession() }) {
             Text(text = "Create session")
         }
-        Button(onClick = { viewModel.localRegister(context) }) {
-            Text(text = "Local test")
-        }
-
 
         result?.let {
             Text(text = it)

@@ -57,6 +57,7 @@ dependencies {
     implementation(libs.nimbus.jose.jwt)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.okhttp)
+    implementation(libs.bouncy.castle.bcprov)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)

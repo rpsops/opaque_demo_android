@@ -22,13 +22,26 @@ import com.nimbusds.jose.crypto.ECDSASigner
 import com.nimbusds.jose.crypto.ECDSAVerifier
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import org.bouncycastle.crypto.digests.SHA256Digest
+import org.bouncycastle.crypto.generators.HKDFBytesGenerator
+import org.bouncycastle.crypto.params.HKDFParameters
+import org.bouncycastle.jce.ECNamedCurveTable
+import org.bouncycastle.math.ec.ECPoint
+import se.digg.opaque_ke_uniffi.hashToCurveP256Sha256
 import java.io.InputStream
+import java.security.AlgorithmParameters
+import java.security.KeyFactory
 import java.security.KeyStore
 import java.security.SecureRandom
 import java.security.cert.CertificateFactory
 import java.security.interfaces.ECPrivateKey
 import java.security.interfaces.ECPublicKey
+import java.security.spec.ECGenParameterSpec
+import java.security.spec.ECParameterSpec
+import java.security.spec.ECPublicKeySpec
+import java.security.spec.ECPoint as JavaECPoint
 import java.time.Instant
+import javax.crypto.KeyAgreement
 
 class OpaqueCryptoManager(private val context: Context, private val clientIdentifier: String) {
 
@@ -95,6 +108,49 @@ class OpaqueCryptoManager(private val context: Context, private val clientIdenti
         SecureRandom().nextBytes(nonceBytes)
         return nonceBytes.toHexString()
     }
+
+
+    fun stretchPin(pin: ByteArray): ByteArray {
+        val curveName = "secp256r1"
+
+        // 1. Hash to Curve (Get compressed bytes)
+        val compressedPoint = hashToCurveP256Sha256(
+            pin,
+            "SE_EIDAS_WALLET_PIN_HARDENING".toByteArray()
+        )
+
+        // 2. Decode Point (Using BC because Java can't handle compressed bytes easily)
+        val bcCurve = ECNamedCurveTable.getParameterSpec(curveName)
+        val bouncyCastlePoint: ECPoint = bcCurve.curve.decodePoint(compressedPoint)
+
+        // 3. Reconstruct Java Public Key
+        val parameterSpec = AlgorithmParameters.getInstance("EC").apply {
+            init(ECGenParameterSpec(curveName))
+        }.getParameterSpec(ECParameterSpec::class.java)
+
+        val javaPoint = JavaECPoint(
+            bouncyCastlePoint.affineXCoord.toBigInteger(),
+            bouncyCastlePoint.affineYCoord.toBigInteger()
+        )
+
+        val pinPublicKey = KeyFactory.getInstance("EC")
+            .generatePublic(ECPublicKeySpec(javaPoint, parameterSpec))
+
+        // 4. ECDH
+        val keyAgreement = KeyAgreement.getInstance("ECDH")
+        keyAgreement.init(clientPrivateKey)
+        keyAgreement.doPhase(pinPublicKey, true)
+        val ikm = keyAgreement.generateSecret()
+
+        // 5. HKDF
+        val hkdf = HKDFBytesGenerator(SHA256Digest())
+        hkdf.init(HKDFParameters(ikm, null, byteArrayOf()))
+        val seededPin = ByteArray(32)
+        hkdf.generateBytes(seededPin, 0, 32)
+
+        return seededPin
+    }
+
 
     private fun getPayloadWrapper(
         type: String,

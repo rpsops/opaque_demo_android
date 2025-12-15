@@ -76,8 +76,10 @@ class RegisterViewModel : ViewModel() {
         viewModelScope.launch(Dispatchers.IO) {
             val cryptoManager = OpaqueCryptoManager(context, String(clientIdentifier))
 
+            val hardPin = cryptoManager.stretchPin(byteArrayOf(1, 2, 3))
+
             // Client start
-            val clientRegStartResult = clientRegistrationStart(byteArrayOf(1, 2, 3))
+            val clientRegStartResult = clientRegistrationStart(hardPin)
 
             val registrationResponse = executeOpaqueRequest(
                 cryptoManager,
@@ -88,7 +90,7 @@ class RegisterViewModel : ViewModel() {
 
             // Client finish
             val clientRegFinishResult = clientRegistrationFinish(
-                byteArrayOf(1, 2, 3),
+                hardPin,
                 clientRegStartResult.clientRegistration,
                 registrationResponse.resp!!,
                 clientIdentifier,
@@ -112,8 +114,10 @@ class RegisterViewModel : ViewModel() {
         viewModelScope.launch(Dispatchers.IO) {
             val cryptoManager = OpaqueCryptoManager(context, String(clientIdentifier))
 
+            val hardPin = cryptoManager.stretchPin(byteArrayOf(1, 2, 3))
+
             // client start
-            val clientLoginStart = clientLoginStart(byteArrayOf(1, 2, 3))
+            val clientLoginStart = clientLoginStart(hardPin)
 
             val loginEvaluateResponse = executeOpaqueRequest(
                 cryptoManager,
@@ -128,7 +132,7 @@ class RegisterViewModel : ViewModel() {
                 clientLoginFinish = clientLoginFinish(
                     loginEvaluateResponse.resp!!,
                     clientLoginStart.clientRegistration,
-                    byteArrayOf(1, 2, 3),
+                    hardPin,
                     opaqueContext,
                     clientIdentifier,
                     serverIdentifier
@@ -200,12 +204,15 @@ class RegisterViewModel : ViewModel() {
     /**
      * Run the opaque process locally, without calling any server
      */
-    fun localRegister() {
+    fun localRegister(context: Context) {
+        val cryptoManager = OpaqueCryptoManager(context, String(clientIdentifier))
+
+        val hardPin = cryptoManager.stretchPin(byteArrayOf(1, 2, 3))
 
         val serverSetup = serverSetup()
 
         // registration
-        val clientRegStartResult = clientRegistrationStart(byteArrayOf(1, 2, 3))
+        val clientRegStartResult = clientRegistrationStart(hardPin)
 
         val serverRegStartResult =
             serverRegistrationStart(
@@ -215,7 +222,7 @@ class RegisterViewModel : ViewModel() {
             )
 
         val clientRegFinishResult = clientRegistrationFinish(
-            byteArrayOf(1, 2, 3),
+            hardPin,
             clientRegStartResult.clientRegistration,
             serverRegStartResult,
             clientIdentifier,
@@ -227,7 +234,7 @@ class RegisterViewModel : ViewModel() {
 
 
         // login/Create session
-        val clientLoginStart = clientLoginStart(byteArrayOf(1, 2, 3))
+        val clientLoginStart = clientLoginStart(hardPin)
 
         val serverLoginStart = serverLoginStart(
             serverSetup,
@@ -242,7 +249,7 @@ class RegisterViewModel : ViewModel() {
         val clientLoginFinish = clientLoginFinish(
             serverLoginStart.credentialResponse,
             clientLoginStart.clientRegistration,
-            byteArrayOf(1, 2, 3),
+            hardPin,
             opaqueContext,
             clientIdentifier,
             serverIdentifier

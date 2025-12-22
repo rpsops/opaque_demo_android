@@ -31,6 +31,9 @@ class RegisterViewModel(application: Application) : AndroidViewModel(application
     private val _result = MutableStateFlow<String?>(null)
     val result = _result.asStateFlow()
 
+    var sessionKey: ByteArray? = null
+    var pakeSessionId: String? = null
+
     val authorizationCode: ByteArray = ByteArray(16)
 
     private val opaqueApi: OpaqueClient by lazy {
@@ -106,13 +109,40 @@ class RegisterViewModel(application: Application) : AndroidViewModel(application
 
                 val serverFinish = service.sendRequest(loginFinish.loginFinishRequest)
 
-
                 val message = opaqueApi.getMessage(serverFinish)
                 check(message == "OK")
+
+                // saves the session key and pake session id for later use
+                sessionKey = loginFinish.sessionKey
+                pakeSessionId = loginFinish.pakeSessionId
+
                 _result.value = loginFinish.sessionKey.joinToString("") { "%02x".format(it) }
             } catch (e: Exception) {
                 _result.value = "Login failed: ${e.message}"
             }
+        }
+    }
+
+    fun createHsmKey() {
+        viewModelScope.launch(Dispatchers.IO) {
+            val createHsmKey =
+                opaqueApi.createHsmKey(sessionKey!!, pakeSessionId!!)
+
+            val serverResponse = service.sendRequest(createHsmKey)
+            val message = opaqueApi.getMessage(serverResponse, sessionKey!!)
+            _result.value = message
+        }
+    }
+
+    fun listHsmKey() {
+        viewModelScope.launch(Dispatchers.IO) {
+            val createHsmKey =
+                // todo better naming. It's not listing, it's creating a request to send
+                opaqueApi.listHsmKeys(sessionKey!!, pakeSessionId!!)
+
+            val serverResponse = service.sendRequest(createHsmKey)
+            val message = opaqueApi.getMessage(serverResponse, sessionKey!!)
+            _result.value = message
         }
     }
 

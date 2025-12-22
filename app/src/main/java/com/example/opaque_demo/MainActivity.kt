@@ -54,6 +54,12 @@ fun Buttons(modifier: Modifier = Modifier, viewModel: RegisterViewModel = viewMo
         Button(onClick = { viewModel.createSession() }) {
             Text(text = "Create session")
         }
+        Button(onClick = { viewModel.createHsmKey() }) {
+            Text(text = "Create HSM key")
+        }
+        Button(onClick = { viewModel.listHsmKey() }) {
+            Text(text = "List HSM keys")
+        }
 
         result?.let {
             Text(text = it)

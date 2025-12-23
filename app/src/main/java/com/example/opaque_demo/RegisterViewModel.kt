@@ -87,7 +87,7 @@ class RegisterViewModel(application: Application) : AndroidViewModel(application
 
                 val serverFinish = service.sendRequest(registerFinish.registrationUpload)
 
-                val message = opaqueApi.getMessage(serverFinish)
+                val message = opaqueApi.decryptMessage(serverFinish)
                 _result.value = message
             } catch (e: Exception) {
                 _result.value = "Registration failed: ${e.message}"
@@ -109,7 +109,7 @@ class RegisterViewModel(application: Application) : AndroidViewModel(application
 
                 val serverFinish = service.sendRequest(loginFinish.loginFinishRequest)
 
-                val message = opaqueApi.getMessage(serverFinish)
+                val message = opaqueApi.decryptMessage(serverFinish)
                 check(message == "OK")
 
                 // saves the session key and pake session id for later use
@@ -129,8 +129,8 @@ class RegisterViewModel(application: Application) : AndroidViewModel(application
                 opaqueApi.createHsmKey(sessionKey!!, pakeSessionId!!)
 
             val serverResponse = service.sendRequest(createHsmKey)
-            val message = opaqueApi.getMessage(serverResponse, sessionKey!!)
-            _result.value = message
+            val payload = opaqueApi.decryptPayload(serverResponse, sessionKey!!)
+            _result.value = payload
         }
     }
 
@@ -141,8 +141,19 @@ class RegisterViewModel(application: Application) : AndroidViewModel(application
                 opaqueApi.listHsmKeys(sessionKey!!, pakeSessionId!!)
 
             val serverResponse = service.sendRequest(createHsmKey)
-            val message = opaqueApi.getMessage(serverResponse, sessionKey!!)
-            _result.value = message
+            val payload = opaqueApi.decryptPayload(serverResponse, sessionKey!!)
+            _result.value = payload
+        }
+    }
+
+    fun deleteKey(kid: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val createHsmKey =
+                opaqueApi.deleteHsmKey(sessionKey!!, pakeSessionId!!, kid)
+
+            val serverResponse = service.sendRequest(createHsmKey)
+            val payload = opaqueApi.decryptPayload(serverResponse, sessionKey!!)
+            _result.value = payload
         }
     }
 

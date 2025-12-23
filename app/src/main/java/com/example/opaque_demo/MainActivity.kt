@@ -60,6 +60,9 @@ fun Buttons(modifier: Modifier = Modifier, viewModel: RegisterViewModel = viewMo
         Button(onClick = { viewModel.listHsmKey() }) {
             Text(text = "List HSM keys")
         }
+        Button(onClick = { viewModel.deleteKey("someKid") }) {
+            Text(text = "Delete HSM key")
+        }
 
         result?.let {
             Text(text = it)

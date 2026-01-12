@@ -25,7 +25,7 @@ class RegisterViewModel(application: Application) : AndroidViewModel(application
 
     private val service = OpaqueService()
 
-    val clientIdentifier = "https://wallets/digg.se/1234567890"
+    val clientIdentifier = "a25d8884-c77b-43ab-bf9d-1279c08d860d"
     val serverIdentifier = "https://cloud-wallet.digg.se/rhsm"
 
     private val _result = MutableStateFlow<String?>(null)
@@ -107,10 +107,7 @@ class RegisterViewModel(application: Application) : AndroidViewModel(application
                     pin, serverStart, loginStart.clientRegistration
                 )
 
-                val serverFinish = service.sendRequest(loginFinish.loginFinishRequest)
-
-                val message = opaqueApi.decryptMessage(serverFinish)
-                check(message == "OK")
+                service.sendRequest(loginFinish.loginFinishRequest)
 
                 // saves the session key and pake session id for later use
                 sessionKey = loginFinish.sessionKey

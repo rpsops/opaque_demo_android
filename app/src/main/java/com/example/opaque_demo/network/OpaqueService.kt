@@ -12,8 +12,7 @@ import java.io.IOException
 class OpaqueService {
 
     private val client = OkHttpClient()
-    private val baseUrl = "http://10.0.2.2:9010/rhsm-bff/service"
-    // private val baseUrl = "http://10.0.2.2:8088/r2ps-api/service"
+    private val baseUrl = "http://10.0.2.2:8088/r2ps-api/service"
 
     suspend fun sendRequest(data: String): String {
         return withContext(Dispatchers.IO) {
@@ -30,7 +29,7 @@ class OpaqueService {
                         Log.e("OpaqueDemo", "Unexpected code $response")
                         throw IOException("Unexpected code $response")
                     } else {
-                        val responseString = response.body?.string() ?: ""
+                        val responseString = response.body.string()
                         Log.d("OpaqueDemo", "Response: $responseString")
                         responseString
                     }

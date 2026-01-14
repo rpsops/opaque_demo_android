@@ -14,11 +14,12 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.opaque_demo.ui.theme.Opaque_demoTheme
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -44,6 +45,8 @@ fun Buttons(modifier: Modifier = Modifier, viewModel: RegisterViewModel = viewMo
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         val result by viewModel.result.collectAsState()
+        val scope = rememberCoroutineScope()
+
 
         Button(onClick = { viewModel.registerAuthentication() }) {
             Text(text = "Register auth code")
@@ -57,8 +60,19 @@ fun Buttons(modifier: Modifier = Modifier, viewModel: RegisterViewModel = viewMo
         Button(onClick = { viewModel.createHsmKey() }) {
             Text(text = "Create HSM key")
         }
-        Button(onClick = { viewModel.listHsmKey() }) {
+        Button(onClick = {
+            scope.launch {
+                viewModel.listHsmKey()
+            }
+        }) {
             Text(text = "List HSM keys")
+        }
+        Button(onClick = {
+            scope.launch {
+                viewModel.sign()
+            }
+        }) {
+            Text(text = "Sign")
         }
         Button(onClick = { viewModel.deleteKey("someKid") }) {
             Text(text = "Delete HSM key")

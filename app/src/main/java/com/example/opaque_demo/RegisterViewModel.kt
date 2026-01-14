@@ -10,7 +10,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import se.digg.wallet.access_mechanism.api.OpaqueClient
+import se.digg.wallet.access_mechanism.model.KeyInfo
 import java.io.InputStream
 import java.security.KeyPairGenerator
 import java.security.KeyStore
@@ -131,16 +133,28 @@ class RegisterViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
-    fun listHsmKey() {
-        viewModelScope.launch(Dispatchers.IO) {
+    suspend fun listHsmKey(): List<KeyInfo> =
+        withContext(Dispatchers.IO) {
             val createHsmKey =
                 // todo better naming. It's not listing, it's creating a request to send
                 opaqueApi.listHsmKeys(sessionKey!!, pakeSessionId!!)
 
             val serverResponse = service.sendRequest(createHsmKey)
-            val payload = opaqueApi.decryptPayload(serverResponse, sessionKey!!)
-            _result.value = payload
+            val keys = opaqueApi.decryptKeys(serverResponse, sessionKey!!)
+            _result.value = keys.toString()
+            keys
         }
+
+    suspend fun sign() {
+        val payloadToSign = "{\"payload\":\"test\"}"
+        // just get the latest key for now
+        val key = listHsmKey().maxByOrNull { it.creationTime }!!
+        val signRequest =
+            opaqueApi.signWithHsm(sessionKey!!, pakeSessionId!!, key.kid, payloadToSign)
+
+        val serverResponse = service.sendRequest(signRequest.request)
+        val signedString = opaqueApi.decryptSign(sessionKey!!, signRequest, serverResponse)
+        _result.value = signedString
     }
 
     fun deleteKey(kid: String) {
@@ -157,7 +171,8 @@ class RegisterViewModel(application: Application) : AndroidViewModel(application
     private fun getServerPublicKey(): ECPublicKey {
         val inputStream: InputStream =
             getApplication<Application>().resources.openRawResource(R.raw.serverkey)
-        val certificate = CertificateFactory.getInstance("X.509").generateCertificate(inputStream)
+        val certificate =
+            CertificateFactory.getInstance("X.509").generateCertificate(inputStream)
         return certificate.publicKey as ECPublicKey
     }
 
@@ -193,4 +208,5 @@ class RegisterViewModel(application: Application) : AndroidViewModel(application
         }
         return keyStore.getKey(keyAlias, null) as PrivateKey
     }
+
 }

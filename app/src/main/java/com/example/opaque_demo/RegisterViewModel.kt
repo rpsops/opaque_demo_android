@@ -17,7 +17,6 @@ import java.io.InputStream
 import java.security.KeyPairGenerator
 import java.security.KeyStore
 import java.security.PrivateKey
-import java.security.SecureRandom
 import java.security.cert.CertificateFactory
 import java.security.interfaces.ECPrivateKey
 import java.security.interfaces.ECPublicKey
@@ -47,25 +46,6 @@ class RegisterViewModel(application: Application) : AndroidViewModel(application
             serverIdentifier,
             "RPS-Ops"
         )
-    }
-
-    /**
-     * Register the authentication code for the device
-     * This should already be available on the server. This is just to be able to run a registerPin
-     */
-    fun registerAuthentication() {
-        viewModelScope.launch(Dispatchers.IO) {
-            try {
-                SecureRandom().nextBytes(authorizationCode)
-
-                val registerDeviceRequest = opaqueApi.registerDevice(authorizationCode)
-
-                service.sendRequest(registerDeviceRequest)
-                // We don't care about the result. This is just for testing
-            } catch (e: Exception) {
-                _result.value = "Device registration failed: ${e.message}"
-            }
-        }
     }
 
     /**
@@ -147,20 +127,23 @@ class RegisterViewModel(application: Application) : AndroidViewModel(application
 
     suspend fun sign() {
         val payloadToSign = "{\"payload\":\"test\"}"
-        // just get the latest key for now
+        // just get the most recent key for now
         val key = listHsmKey().maxByOrNull { it.creationTime }!!
         val signRequest =
-            opaqueApi.signWithHsm(sessionKey!!, pakeSessionId!!, key.kid, payloadToSign)
+            opaqueApi.signWithHsm(sessionKey!!, pakeSessionId!!, key.publicKey.keyID, payloadToSign)
 
         val serverResponse = service.sendRequest(signRequest.request)
         val signedString = opaqueApi.decryptSign(sessionKey!!, signRequest, serverResponse)
         _result.value = signedString
     }
 
-    fun deleteKey(kid: String) {
+    fun deleteKey() {
         viewModelScope.launch(Dispatchers.IO) {
+            // just get the most recent key for now
+            val key = listHsmKey().maxByOrNull { it.creationTime }!!
+
             val createHsmKey =
-                opaqueApi.deleteHsmKey(sessionKey!!, pakeSessionId!!, kid)
+                opaqueApi.deleteHsmKey(sessionKey!!, pakeSessionId!!, key.publicKey.keyID)
 
             val serverResponse = service.sendRequest(createHsmKey)
             val payload = opaqueApi.decryptPayload(serverResponse, sessionKey!!)

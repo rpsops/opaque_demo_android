@@ -48,9 +48,6 @@ fun Buttons(modifier: Modifier = Modifier, viewModel: RegisterViewModel = viewMo
         val scope = rememberCoroutineScope()
 
 
-        Button(onClick = { viewModel.registerAuthentication() }) {
-            Text(text = "Register auth code")
-        }
         Button(onClick = { viewModel.registerPin() }) {
             Text(text = "Register pin")
         }
@@ -67,6 +64,7 @@ fun Buttons(modifier: Modifier = Modifier, viewModel: RegisterViewModel = viewMo
         }) {
             Text(text = "List HSM keys")
         }
+        // todo sign and deleteKey will eventually need a key as input.
         Button(onClick = {
             scope.launch {
                 viewModel.sign()
@@ -74,7 +72,7 @@ fun Buttons(modifier: Modifier = Modifier, viewModel: RegisterViewModel = viewMo
         }) {
             Text(text = "Sign")
         }
-        Button(onClick = { viewModel.deleteKey("someKid") }) {
+        Button(onClick = { viewModel.deleteKey() }) {
             Text(text = "Delete HSM key")
         }
 

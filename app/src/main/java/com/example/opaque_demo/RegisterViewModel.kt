@@ -128,7 +128,7 @@ class RegisterViewModel(application: Application) : AndroidViewModel(application
     suspend fun sign() {
         val payloadToSign = "{\"payload\":\"test\"}"
         // just get the most recent key for now
-        val key = listHsmKey().maxByOrNull { it.creationTime }!!
+        val key = listHsmKey().maxByOrNull { it.createdAt}!!
         val signRequest =
             opaqueApi.signWithHsm(sessionKey!!, pakeSessionId!!, key.publicKey.keyID, payloadToSign)
 
@@ -140,7 +140,7 @@ class RegisterViewModel(application: Application) : AndroidViewModel(application
     fun deleteKey() {
         viewModelScope.launch(Dispatchers.IO) {
             // just get the most recent key for now
-            val key = listHsmKey().maxByOrNull { it.creationTime }!!
+            val key = listHsmKey().maxByOrNull { it.createdAt}!!
 
             val createHsmKey =
                 opaqueApi.deleteHsmKey(sessionKey!!, pakeSessionId!!, key.publicKey.keyID)

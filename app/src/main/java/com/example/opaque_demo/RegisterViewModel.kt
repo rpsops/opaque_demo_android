@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import se.digg.wallet.access_mechanism.api.OpaqueClient
+import se.digg.wallet.access_mechanism.exception.OpaqueException
 import se.digg.wallet.access_mechanism.model.KeyInfo
 import java.io.InputStream
 import java.security.KeyPairGenerator
@@ -71,8 +72,12 @@ class RegisterViewModel(application: Application) : AndroidViewModel(application
 
                 val message = opaqueApi.decryptMessage(serverFinish)
                 _result.value = message
-            } catch (e: Exception) {
-                _result.value = "Registration failed: ${e.message}"
+            } catch (e: OpaqueException) {
+                when(e) {
+                    is OpaqueException.InvalidInputException -> _result.value = "Invalid input: ${e.message}"
+                    is OpaqueException.CryptoException -> _result.value = "Crypto error: ${e.message}"
+                    is OpaqueException.ProtocolException -> _result.value = "Protocol error: ${e.message}"
+                }
             }
         }
     }

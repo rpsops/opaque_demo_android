@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.Button
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -77,7 +78,9 @@ fun Buttons(modifier: Modifier = Modifier, viewModel: RegisterViewModel = viewMo
         }
 
         result?.let {
-            Text(text = it)
+            SelectionContainer {
+                Text(text = it)
+            }
         }
     }
 }

@@ -133,7 +133,7 @@ class RegisterViewModel(application: Application) : AndroidViewModel(application
             opaqueApi.signWithHsm(sessionKey!!, pakeSessionId!!, key.publicKey.keyID, payloadToSign)
 
         val serverResponse = service.sendRequest(signRequest.request)
-        val signedString = opaqueApi.decryptSign(sessionKey!!, signRequest, serverResponse)
+        val signedString = opaqueApi.decryptSign(sessionKey!!, signRequest, serverResponse, key.publicKey)
         _result.value = signedString
     }
 

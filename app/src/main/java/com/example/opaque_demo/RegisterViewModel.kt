@@ -70,8 +70,8 @@ class RegisterViewModel(application: Application) : AndroidViewModel(application
 
                 val serverFinish = service.sendRequest(registerFinish.registrationUpload)
 
-                val message = opaqueApi.decryptMessage(serverFinish)
-                _result.value = message
+                val status = opaqueApi.decryptStatus(serverFinish)
+                _result.value = status
             } catch (e: OpaqueException) {
                 when(e) {
                     is OpaqueException.InvalidInputException -> _result.value = "Invalid input: ${e.message}"

@@ -58,8 +58,9 @@ class RegisterViewModel(application: Application) : AndroidViewModel(application
                 val pin = "123"
                 val registrationStart = opaqueApi.registrationStart(pin)
 
-                val registrationResponse =
-                    service.sendRequest(registrationStart.registrationRequest)
+                val registrationResponse = service.sendRequest(
+                    createBffRequest(registrationStart.registrationRequest)
+                )
 
                 val registerFinish = opaqueApi.registrationFinish(
                     pin,
@@ -68,15 +69,22 @@ class RegisterViewModel(application: Application) : AndroidViewModel(application
                     registrationStart.clientRegistration
                 )
 
-                val serverFinish = service.sendRequest(registerFinish.registrationUpload)
+                val serverFinish = service.sendRequest(
+                    createBffRequest(registerFinish.registrationUpload)
+                )
 
                 val status = opaqueApi.decryptStatus(serverFinish)
                 _result.value = status
             } catch (e: OpaqueException) {
-                when(e) {
-                    is OpaqueException.InvalidInputException -> _result.value = "Invalid input: ${e.message}"
-                    is OpaqueException.CryptoException -> _result.value = "Crypto error: ${e.message}"
-                    is OpaqueException.ProtocolException -> _result.value = "Protocol error: ${e.message}"
+                when (e) {
+                    is OpaqueException.InvalidInputException -> _result.value =
+                        "Invalid input: ${e.message}"
+
+                    is OpaqueException.CryptoException -> _result.value =
+                        "Crypto error: ${e.message}"
+
+                    is OpaqueException.ProtocolException -> _result.value =
+                        "Protocol error: ${e.message}"
                 }
             }
         }
@@ -88,13 +96,13 @@ class RegisterViewModel(application: Application) : AndroidViewModel(application
                 val pin = "123"
                 val loginStart = opaqueApi.loginStart(pin)
 
-                val serverStart = service.sendRequest(loginStart.loginRequest)
+                val serverStart = service.sendRequest(createBffRequest(loginStart.loginRequest))
 
                 val loginFinish = opaqueApi.loginFinish(
                     pin, serverStart, loginStart.clientRegistration
                 )
 
-                service.sendRequest(loginFinish.loginFinishRequest)
+                service.sendRequest(createBffRequest(loginFinish.loginFinishRequest))
 
                 // saves the session key and pake session id for later use
                 sessionKey = loginFinish.sessionKey
@@ -109,48 +117,47 @@ class RegisterViewModel(application: Application) : AndroidViewModel(application
 
     fun createHsmKey() {
         viewModelScope.launch(Dispatchers.IO) {
-            val createHsmKey =
-                opaqueApi.createHsmKey(sessionKey!!, pakeSessionId!!)
+            val createHsmKey = opaqueApi.createHsmKey(sessionKey!!, pakeSessionId!!)
 
-            val serverResponse = service.sendRequest(createHsmKey)
+            val serverResponse = service.sendRequest(createBffRequest(createHsmKey))
             val payload = opaqueApi.decryptPayload(serverResponse, sessionKey!!)
             _result.value = payload
         }
     }
 
-    suspend fun listHsmKey(): List<KeyInfo> =
-        withContext(Dispatchers.IO) {
-            val createHsmKey =
-                // todo better naming. It's not listing, it's creating a request to send
-                opaqueApi.listHsmKeys(sessionKey!!, pakeSessionId!!)
+    suspend fun listHsmKey(): List<KeyInfo> = withContext(Dispatchers.IO) {
+        val createHsmKey =
+            // todo better naming. It's not listing, it's creating a request to send
+            opaqueApi.listHsmKeys(sessionKey!!, pakeSessionId!!)
 
-            val serverResponse = service.sendRequest(createHsmKey)
-            val keys = opaqueApi.decryptKeys(serverResponse, sessionKey!!)
-            _result.value = keys.toString()
-            keys
-        }
+        val serverResponse = service.sendRequest(createBffRequest(createHsmKey))
+        val keys = opaqueApi.decryptKeys(serverResponse, sessionKey!!)
+        _result.value = keys.toString()
+        keys
+    }
 
     suspend fun sign() {
         val payloadToSign = "{\"payload\":\"test\"}"
         // just get the most recent key for now
-        val key = listHsmKey().maxByOrNull { it.createdAt}!!
+        val key = listHsmKey().maxByOrNull { it.createdAt }!!
         val signRequest =
             opaqueApi.signWithHsm(sessionKey!!, pakeSessionId!!, key.publicKey.keyID, payloadToSign)
 
-        val serverResponse = service.sendRequest(signRequest.request)
-        val signedString = opaqueApi.decryptSign(sessionKey!!, signRequest, serverResponse, key.publicKey)
+        val serverResponse = service.sendRequest(createBffRequest(signRequest.request))
+        val signedString =
+            opaqueApi.decryptSign(sessionKey!!, signRequest, serverResponse, key.publicKey)
         _result.value = signedString
     }
 
     fun deleteKey() {
         viewModelScope.launch(Dispatchers.IO) {
             // just get the most recent key for now
-            val key = listHsmKey().maxByOrNull { it.createdAt}!!
+            val key = listHsmKey().maxByOrNull { it.createdAt }!!
 
             val createHsmKey =
                 opaqueApi.deleteHsmKey(sessionKey!!, pakeSessionId!!, key.publicKey.keyID)
 
-            val serverResponse = service.sendRequest(createHsmKey)
+            val serverResponse = service.sendRequest(createBffRequest(createHsmKey))
             val payload = opaqueApi.decryptPayload(serverResponse, sessionKey!!)
             _result.value = payload
         }
@@ -159,8 +166,7 @@ class RegisterViewModel(application: Application) : AndroidViewModel(application
     private fun getServerPublicKey(): ECPublicKey {
         val inputStream: InputStream =
             getApplication<Application>().resources.openRawResource(R.raw.serverkey)
-        val certificate =
-            CertificateFactory.getInstance("X.509").generateCertificate(inputStream)
+        val certificate = CertificateFactory.getInstance("X.509").generateCertificate(inputStream)
         return certificate.publicKey as ECPublicKey
     }
 
@@ -195,6 +201,10 @@ class RegisterViewModel(application: Application) : AndroidViewModel(application
             generator.generateKeyPair()
         }
         return keyStore.getKey(keyAlias, null) as PrivateKey
+    }
+
+    private fun createBffRequest(request: String): BffRequest {
+        return BffRequest(clientIdentifier, request)
     }
 
 }

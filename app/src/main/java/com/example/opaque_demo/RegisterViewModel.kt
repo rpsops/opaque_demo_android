@@ -29,7 +29,7 @@ class RegisterViewModel(application: Application) : AndroidViewModel(application
     private val service = OpaqueService()
 
     val clientIdentifier = "a25d8884-c77b-43ab-bf9d-1279c08d860d"
-    val serverIdentifier = "https://cloud-wallet.digg.se/rhsm"
+    val serverIdentifier = "dev.cloud-wallet.digg.se"
 
     private val _result = MutableStateFlow<String?>(null)
     val result = _result.asStateFlow()
@@ -44,7 +44,6 @@ class RegisterViewModel(application: Application) : AndroidViewModel(application
             getServerPublicKey(),
             getClientKeyPair(),
             getPinStretchPrivateKey(),
-            clientIdentifier,
             serverIdentifier,
             "RPS-Ops"
         )

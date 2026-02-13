@@ -31,6 +31,9 @@ class RegisterViewModel(application: Application) : AndroidViewModel(application
     val clientIdentifier = "a25d8884-c77b-43ab-bf9d-1279c08d860d"
     val serverIdentifier = "dev.cloud-wallet.digg.se"
 
+    private val _keys = MutableStateFlow<List<KeyInfo>>(emptyList())
+    val keys = _keys.asStateFlow()
+
     private val _result = MutableStateFlow<String?>(null)
     val result = _result.asStateFlow()
 
@@ -53,6 +56,7 @@ class RegisterViewModel(application: Application) : AndroidViewModel(application
      * Register a pin (123) for the device
      */
     fun registerPin() {
+        _keys.value = emptyList()
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 val pin = "123"
@@ -91,6 +95,7 @@ class RegisterViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun createSession() {
+        _keys.value = emptyList()
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 val pin = "123"
@@ -116,6 +121,7 @@ class RegisterViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun createHsmKey() {
+        _keys.value = emptyList()
         viewModelScope.launch(Dispatchers.IO) {
             val createHsmKey = opaqueApi.createHsmKey(sessionKey!!, pakeSessionId!!)
 
@@ -132,28 +138,30 @@ class RegisterViewModel(application: Application) : AndroidViewModel(application
 
         val serverResponse = service.sendRequest(createBffRequest(createHsmKey))
         val keys = opaqueApi.decryptKeys(serverResponse, sessionKey!!)
-        _result.value = keys.toString()
+        _keys.value = keys
+        _result.value = keys.joinToString("\n\n---\n\n") { key ->
+            "Key ID: ${key.publicKey.keyID}\nCreated: ${key.createdAt}"
+        }
         keys
     }
 
-    suspend fun sign() {
-        val payloadToSign = "{\"payload\":\"test\"}"
-        // just get the most recent key for now
-        val key = listHsmKey().maxByOrNull { it.createdAt }!!
-        val signRequest =
-            opaqueApi.signWithHsm(sessionKey!!, pakeSessionId!!, key.publicKey.keyID, payloadToSign)
+    fun sign(key: KeyInfo) {
+        _keys.value = emptyList()
+        viewModelScope.launch(Dispatchers.IO) {
+            val payloadToSign = "{\"payload\":\"test\"}"
+            val signRequest =
+                opaqueApi.signWithHsm(sessionKey!!, pakeSessionId!!, key.publicKey.keyID, payloadToSign)
 
-        val serverResponse = service.sendRequest(createBffRequest(signRequest.request))
-        val signedString =
-            opaqueApi.decryptSign(sessionKey!!, signRequest, serverResponse, key.publicKey)
-        _result.value = signedString
+            val serverResponse = service.sendRequest(createBffRequest(signRequest.request))
+            val signedString =
+                opaqueApi.decryptSign(sessionKey!!, signRequest, serverResponse, key.publicKey)
+            _result.value = signedString
+        }
     }
 
-    fun deleteKey() {
+    fun deleteKey(key: KeyInfo) {
+        _keys.value = emptyList()
         viewModelScope.launch(Dispatchers.IO) {
-            // just get the most recent key for now
-            val key = listHsmKey().maxByOrNull { it.createdAt }!!
-
             val createHsmKey =
                 opaqueApi.deleteHsmKey(sessionKey!!, pakeSessionId!!, key.publicKey.keyID)
 

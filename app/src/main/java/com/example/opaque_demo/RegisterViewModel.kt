@@ -15,6 +15,7 @@ import se.digg.wallet.access_mechanism.api.OpaqueClient
 import se.digg.wallet.access_mechanism.exception.OpaqueException
 import se.digg.wallet.access_mechanism.model.KeyInfo
 import java.io.InputStream
+import java.security.KeyPair
 import java.security.KeyPairGenerator
 import java.security.KeyStore
 import java.security.PrivateKey
@@ -28,7 +29,7 @@ class RegisterViewModel(application: Application) : AndroidViewModel(application
     private val service = OpaqueService()
 
     val clientIdentifier = "a25d8884-c77b-43ab-bf9d-1279c08d860d"
-    val serverIdentifier = "https://cloud-wallet.digg.se/rhsm"
+    val serverIdentifier = "dev.cloud-wallet.digg.se"
 
     private val _result = MutableStateFlow<String?>(null)
     val result = _result.asStateFlow()
@@ -41,9 +42,8 @@ class RegisterViewModel(application: Application) : AndroidViewModel(application
     private val opaqueApi: OpaqueClient by lazy {
         OpaqueClient(
             getServerPublicKey(),
-            getClientPrivateKey(),
+            getClientKeyPair(),
             getPinStretchPrivateKey(),
-            clientIdentifier,
             serverIdentifier,
             "RPS-Ops"
         )
@@ -170,7 +170,7 @@ class RegisterViewModel(application: Application) : AndroidViewModel(application
         return certificate.publicKey as ECPublicKey
     }
 
-    private fun getClientPrivateKey(): ECPrivateKey {
+    private fun getClientKeyPair(): KeyPair {
         val password = "Test1234".toCharArray()
         val alias = "wallet-hsm"
         val keyStore = KeyStore.getInstance("PKCS12")
@@ -178,7 +178,9 @@ class RegisterViewModel(application: Application) : AndroidViewModel(application
             .use { inputStream ->
                 keyStore.load(inputStream, password)
             }
-        return keyStore.getKey(alias, password) as ECPrivateKey
+        val privateKey = keyStore.getKey(alias, password) as ECPrivateKey
+        val publicKey = keyStore.getCertificate(alias).publicKey as ECPublicKey
+        return KeyPair(publicKey, privateKey)
     }
 
     private fun getPinStretchPrivateKey(): PrivateKey {

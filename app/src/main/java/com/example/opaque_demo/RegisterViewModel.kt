@@ -155,7 +155,8 @@ class RegisterViewModel(application: Application) : AndroidViewModel(application
             val serverResponse = service.sendRequest(createBffRequest(signRequest.request))
             val signedString =
                 opaqueApi.decryptSign(sessionKey!!, signRequest, serverResponse, key.publicKey)
-            _result.value = signedString
+
+            _result.value = signedString + "\n\n" + key.publicKey.toString()
         }
     }
 

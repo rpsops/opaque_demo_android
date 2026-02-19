@@ -7,7 +7,6 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -64,6 +63,7 @@ class MainActivity : ComponentActivity() {
 fun Buttons(modifier: Modifier = Modifier, viewModel: RegisterViewModel = viewModel()) {
     val result by viewModel.result.collectAsState()
     val keys by viewModel.keys.collectAsState()
+    val authorizationCode by viewModel.authorizationCode.collectAsState()
     val scope = rememberCoroutineScope()
 
     var selectedKeyForAction by remember { mutableStateOf<KeyInfo?>(null) }
@@ -107,20 +107,33 @@ fun Buttons(modifier: Modifier = Modifier, viewModel: RegisterViewModel = viewMo
                 .padding(8.dp)
         ) {
             if (keys.isNotEmpty()) {
-                LazyColumn(modifier = Modifier.fillMaxSize()) {
-                    items(keys) { key ->
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .combinedClickable(
-                                    onClick = { /* Info */ },
-                                    onLongClick = { selectedKeyForAction = key }
+                Column(modifier = Modifier.fillMaxSize()) {
+                    Text(
+                        text = "Long press a key for options",
+                        style = MaterialTheme.typography.labelMedium,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+                    LazyColumn(modifier = Modifier.weight(1f)) {
+                        items(keys) { key ->
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .combinedClickable(
+                                        onClick = { /* Info */ },
+                                        onLongClick = { selectedKeyForAction = key }
+                                    )
+                                    .padding(vertical = 8.dp)
+                            ) {
+                                Text(
+                                    text = "ID: ${key.publicKey.keyID}",
+                                    style = MaterialTheme.typography.bodyMedium
                                 )
-                                .padding(vertical = 8.dp)
-                        ) {
-                            Text(text = "ID: ${key.publicKey.keyID}", style = MaterialTheme.typography.bodyMedium)
-                            Text(text = "Created: ${key.createdAt}", style = MaterialTheme.typography.bodySmall)
-                            HorizontalDivider()
+                                Text(
+                                    text = "Created: ${key.createdAt}",
+                                    style = MaterialTheme.typography.bodySmall
+                                )
+                                HorizontalDivider()
+                            }
                         }
                     }
                 }
@@ -141,6 +154,10 @@ fun Buttons(modifier: Modifier = Modifier, viewModel: RegisterViewModel = viewMo
         // Buttons at the bottom
         Button(
             modifier = Modifier.fillMaxWidth(),
+            onClick = { viewModel.registerNewState() }) { Text(text = "Register new state") }
+        Button(
+            modifier = Modifier.fillMaxWidth(),
+            enabled = authorizationCode != null,
             onClick = { viewModel.registerPin() }
         ) {
             Text(text = "Register pin")

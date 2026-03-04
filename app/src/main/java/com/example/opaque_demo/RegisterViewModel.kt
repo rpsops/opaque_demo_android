@@ -85,12 +85,11 @@ class RegisterViewModel(application: Application) : AndroidViewModel(application
     /**
      * Register a pin (123) for the device
      */
-    fun registerPin() {
+    fun registerPin(pin: String) {
         _keys.value = emptyList()
         val code = _authorizationCode.value
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                val pin = "123"
                 val registrationStart = opaqueApi.registrationStart(pin, code!!)
 
                 val registrationResponse = service.sendRequest(
@@ -125,11 +124,10 @@ class RegisterViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
-    fun changePin() {
+    fun changePin(pin: String) {
         _keys.value = emptyList()
     viewModelScope.launch(Dispatchers.IO) {
             try {
-                val pin = "456"
                 val registrationStart = opaqueApi.changePinStart( pin, sessionKey!!, pakeSessionId!!)
 
                 val registrationResponse = service.sendRequest(
@@ -168,11 +166,10 @@ class RegisterViewModel(application: Application) : AndroidViewModel(application
     }
 
 
-    fun createSession() {
+    fun createSession(pin: String) {
         _keys.value = emptyList()
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                val pin = "123"
                 val loginStart = opaqueApi.loginStart(pin)
 
                 val serverStart = service.sendRequest(createBffRequest(loginStart.loginRequest))

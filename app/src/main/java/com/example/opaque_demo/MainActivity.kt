@@ -164,6 +164,12 @@ fun Buttons(modifier: Modifier = Modifier, viewModel: RegisterViewModel = viewMo
         }
         Button(
             modifier = Modifier.fillMaxWidth(),
+            onClick = { viewModel.changePin() }
+        ) {
+            Text(text = "Change pin")
+        }
+        Button(
+            modifier = Modifier.fillMaxWidth(),
             onClick = { viewModel.createSession() }
         ) {
             Text(text = "Create session")

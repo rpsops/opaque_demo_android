@@ -125,6 +125,49 @@ class RegisterViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
+    fun changePin() {
+        _keys.value = emptyList()
+    viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val pin = "456"
+                val registrationStart = opaqueApi.changePinStart( pin, sessionKey!!, pakeSessionId!!)
+
+                val registrationResponse = service.sendRequest(
+                    createBffRequest(registrationStart.registrationRequest)
+                )
+
+                Log.d("OpaqueDemo", "Change PIN response: $registrationResponse")
+
+                val registerFinish = opaqueApi.changePinFinish(
+                    pin,
+                    registrationResponse,
+                    registrationStart.clientRegistration,
+                    sessionKey!!,
+                    pakeSessionId!!
+                )
+
+                val serverFinish = service.sendRequest(
+                    createBffRequest(registerFinish.registrationUpload)
+                )
+
+                val status = opaqueApi.decryptPayload(serverFinish, sessionKey!!)
+                _result.value = status
+            } catch (e: OpaqueException) {
+                when (e) {
+                    is OpaqueException.InvalidInputException -> _result.value =
+                        "Invalid input: ${e.message}"
+
+                    is OpaqueException.CryptoException -> _result.value =
+                        "Crypto error: ${e.message}"
+
+                    is OpaqueException.ProtocolException -> _result.value =
+                        "Protocol error: ${e.message}"
+                }
+            }
+        }
+    }
+
+
     fun createSession() {
         _keys.value = emptyList()
         viewModelScope.launch(Dispatchers.IO) {

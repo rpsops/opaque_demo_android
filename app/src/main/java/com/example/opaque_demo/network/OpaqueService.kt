@@ -1,6 +1,8 @@
 package com.example.opaque_demo.network
 
 import android.util.Log
+import com.example.opaque_demo.AsyncResponseDto
+import com.example.opaque_demo.AsyncResponseStatus
 import com.example.opaque_demo.BffRequest
 import com.example.opaque_demo.StateRequest
 import com.example.opaque_demo.StateResponse
@@ -16,12 +18,26 @@ import java.io.IOException
 class OpaqueService {
 
     private val client = OkHttpClient()
-    private val baseUrl = "http://10.0.2.2:8088/r2ps-api"
-    private val servicePath = "/service"
-    private val statePath = "/new_state"
+    private val baseUrl = "http://10.0.2.2:8089/r2ps-api/v1"
+    private val servicePath = ""
+    private val statePath = "/device-states"
 
     suspend fun sendRequest(bffRequest: BffRequest): String {
-        return post(baseUrl + servicePath, bffRequest)
+        val response = post(baseUrl + servicePath, bffRequest)
+        val asyncResponse = Json.decodeFromString<AsyncResponseDto>(response)
+        return when (asyncResponse.status) {
+            AsyncResponseStatus.COMPLETE ->
+                asyncResponse.result
+                    ?: throw IOException("Server returned COMPLETE status but no result")
+
+            AsyncResponseStatus.ERROR -> {
+                val errorMsg = asyncResponse.error?.message ?: "Unknown error"
+                throw IOException("Server returned error: $errorMsg")
+            }
+
+            AsyncResponseStatus.PENDING ->
+                throw IOException("Server returned PENDING status (polling not yet implemented)")
+        }
     }
 
     suspend fun registerState(stateRequest: StateRequest): StateResponse {

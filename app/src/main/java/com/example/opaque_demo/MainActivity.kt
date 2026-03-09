@@ -5,22 +5,28 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -35,9 +41,11 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.opaque_demo.network.ConnectionState
 import com.example.opaque_demo.ui.theme.Opaque_demoTheme
 import kotlinx.coroutines.launch
 import se.digg.wallet.access_mechanism.model.KeyInfo
@@ -64,6 +72,7 @@ fun Buttons(modifier: Modifier = Modifier, viewModel: RegisterViewModel = viewMo
     val result by viewModel.result.collectAsState()
     val keys by viewModel.keys.collectAsState()
     val authorizationCode by viewModel.authorizationCode.collectAsState()
+    val connectionState by viewModel.connectionState.collectAsState()
     val scope = rememberCoroutineScope()
 
     var selectedKeyForAction by remember { mutableStateOf<KeyInfo?>(null) }
@@ -98,6 +107,11 @@ fun Buttons(modifier: Modifier = Modifier, viewModel: RegisterViewModel = viewMo
             .padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
+        // Connection status indicator
+        ConnectionStatusBar(connectionState)
+
+        Spacer(modifier = Modifier.height(8.dp))
+
         // Single container for either result text or interactive key list
         Box(
             modifier = Modifier
@@ -154,28 +168,62 @@ fun Buttons(modifier: Modifier = Modifier, viewModel: RegisterViewModel = viewMo
         // Buttons at the bottom
         Button(
             modifier = Modifier.fillMaxWidth(),
-            onClick = { viewModel.registerNewState() }) { Text(text = "Register new state") }
+            onClick = { viewModel.registerNewState() }
+        ) {
+            Text(text = "Register new state")
+        }
+
+        // WebSocket connect/disconnect button
+        if (connectionState == ConnectionState.AUTHENTICATED) {
+            Button(
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.error
+                ),
+                onClick = { viewModel.disconnectWebSocket() }
+            ) {
+                Text(text = "Disconnect WebSocket")
+            }
+        } else {
+            Button(
+                modifier = Modifier.fillMaxWidth(),
+                enabled = connectionState == ConnectionState.DISCONNECTED,
+                onClick = { viewModel.connectWebSocket() }
+            ) {
+                Text(
+                    text = when (connectionState) {
+                        ConnectionState.CONNECTING -> "Connecting..."
+                        ConnectionState.AUTHENTICATING -> "Authenticating..."
+                        else -> "Connect WebSocket"
+                    }
+                )
+            }
+        }
+
         Button(
             modifier = Modifier.fillMaxWidth(),
-            enabled = authorizationCode != null,
+            enabled = authorizationCode != null && connectionState == ConnectionState.AUTHENTICATED,
             onClick = { viewModel.registerPin() }
         ) {
             Text(text = "Register pin")
         }
         Button(
             modifier = Modifier.fillMaxWidth(),
+            enabled = connectionState == ConnectionState.AUTHENTICATED,
             onClick = { viewModel.createSession() }
         ) {
             Text(text = "Create session")
         }
         Button(
             modifier = Modifier.fillMaxWidth(),
+            enabled = connectionState == ConnectionState.AUTHENTICATED,
             onClick = { viewModel.createHsmKey() }
         ) {
             Text(text = "Create HSM key")
         }
         Button(
             modifier = Modifier.fillMaxWidth(),
+            enabled = connectionState == ConnectionState.AUTHENTICATED,
             onClick = {
                 scope.launch {
                     viewModel.listHsmKey()
@@ -183,5 +231,41 @@ fun Buttons(modifier: Modifier = Modifier, viewModel: RegisterViewModel = viewMo
             }) {
             Text(text = "List HSM keys")
         }
+    }
+}
+
+@Composable
+fun ConnectionStatusBar(state: ConnectionState) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        // Status dot
+        val color = when (state) {
+            ConnectionState.DISCONNECTED -> Color.Red
+            ConnectionState.CONNECTING -> Color.Yellow
+            ConnectionState.AUTHENTICATING -> Color(0xFFFFA500) // Orange
+            ConnectionState.AUTHENTICATED -> Color.Green
+        }
+        Box(
+            modifier = Modifier
+                .size(12.dp)
+                .clip(CircleShape)
+                .background(color)
+        )
+
+        // Status text
+        Text(
+            text = when (state) {
+                ConnectionState.DISCONNECTED -> "WebSocket: Disconnected"
+                ConnectionState.CONNECTING -> "WebSocket: Connecting..."
+                ConnectionState.AUTHENTICATING -> "WebSocket: Authenticating..."
+                ConnectionState.AUTHENTICATED -> "WebSocket: Connected"
+            },
+            style = MaterialTheme.typography.bodySmall
+        )
     }
 }

@@ -6,18 +6,24 @@ import android.security.keystore.KeyProperties
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.opaque_demo.network.ConnectionState
 import com.example.opaque_demo.network.OpaqueService
+import com.example.opaque_demo.network.WsService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.Json
 import se.digg.wallet.access_mechanism.api.OpaqueClient
 import se.digg.wallet.access_mechanism.exception.OpaqueException
 import se.digg.wallet.access_mechanism.model.KeyInfo
 import com.nimbusds.jose.jwk.Curve
 import com.nimbusds.jose.jwk.ECKey
 import java.io.InputStream
+import java.math.BigInteger
+import java.security.KeyFactory
 import java.security.KeyPair
 import java.security.KeyPairGenerator
 import java.security.KeyStore
@@ -26,10 +32,17 @@ import java.security.cert.CertificateFactory
 import java.security.interfaces.ECPrivateKey
 import java.security.interfaces.ECPublicKey
 import java.security.spec.ECGenParameterSpec
+import java.security.spec.ECParameterSpec
+import java.security.spec.ECPoint
+import java.security.spec.ECPublicKeySpec
 
 class RegisterViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val service = OpaqueService()
+    // HTTP service — still used for device-state registration (POST /device-states)
+    private val httpService = OpaqueService()
+
+    // WebSocket service — used for all service requests after connect
+    private val wsService = WsService()
 
     val clientIdentifier = "a25d8884-c77b-43ab-bf9d-1279c08d860d"
     val serverIdentifier = "dev.cloud-wallet.digg.se"
@@ -46,6 +59,9 @@ class RegisterViewModel(application: Application) : AndroidViewModel(application
     private val _authorizationCode = MutableStateFlow<String?>(null)
     val authorizationCode = _authorizationCode.asStateFlow()
 
+    /** Expose WebSocket connection state to the UI */
+    val connectionState: StateFlow<ConnectionState> = wsService.connectionState
+
     private val opaqueApi: OpaqueClient by lazy {
         OpaqueClient(
             getServerPublicKey(),
@@ -56,6 +72,10 @@ class RegisterViewModel(application: Application) : AndroidViewModel(application
         )
     }
 
+    /**
+     * Register device state via HTTP POST (unchanged).
+     * This endpoint is not available over WebSocket.
+     */
     fun registerNewState() {
         viewModelScope.launch(Dispatchers.IO) {
             try {
@@ -71,7 +91,7 @@ class RegisterViewModel(application: Application) : AndroidViewModel(application
                     ttl = "PT10M"
                 )
 
-                val registerState = service.registerState(stateRequest)
+                val registerState = httpService.registerState(stateRequest)
                 Log.d("OpaqueDemo", "Register state response: $registerState")
                 _authorizationCode.value = registerState.devAuthorizationCode
                 _result.value = "State registered. Code: ${registerState.devAuthorizationCode}"
@@ -83,7 +103,36 @@ class RegisterViewModel(application: Application) : AndroidViewModel(application
     }
 
     /**
-     * Register a pin (123) for the device
+     * Connect to the WebSocket server and perform HPKE mutual authentication.
+     */
+    fun connectWebSocket() {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val serverHpkeKey = loadWsServerPublicKey()
+                wsService.connect(
+                    clientId = clientIdentifier,
+                    clientKeyPair = getClientKeyPair(),
+                    serverHpkePublicKey = serverHpkeKey
+                )
+                _result.value = "WebSocket connected and authenticated"
+            } catch (e: Exception) {
+                Log.e("OpaqueDemo", "WebSocket connection failed", e)
+                _result.value = "WebSocket connection failed: ${e.message}"
+            }
+        }
+    }
+
+    /**
+     * Disconnect the WebSocket.
+     */
+    fun disconnectWebSocket() {
+        wsService.disconnect()
+        _result.value = "WebSocket disconnected"
+    }
+
+    /**
+     * Register a pin (123) for the device.
+     * Uses WebSocket for service requests.
      */
     fun registerPin() {
         _keys.value = emptyList()
@@ -93,8 +142,8 @@ class RegisterViewModel(application: Application) : AndroidViewModel(application
                 val pin = "123"
                 val registrationStart = opaqueApi.registrationStart(pin, code!!)
 
-                val registrationResponse = service.sendRequest(
-                    createBffRequest(registrationStart.registrationRequest)
+                val registrationResponse = wsService.sendRequest(
+                    registrationStart.registrationRequest
                 )
 
                 val registerFinish = opaqueApi.registrationFinish(
@@ -104,8 +153,8 @@ class RegisterViewModel(application: Application) : AndroidViewModel(application
                     registrationStart.clientRegistration
                 )
 
-                val serverFinish = service.sendRequest(
-                    createBffRequest(registerFinish.registrationUpload)
+                val serverFinish = wsService.sendRequest(
+                    registerFinish.registrationUpload
                 )
 
                 val status = opaqueApi.decryptStatus(serverFinish)
@@ -121,6 +170,9 @@ class RegisterViewModel(application: Application) : AndroidViewModel(application
                     is OpaqueException.ProtocolException -> _result.value =
                         "Protocol error: ${e.message}"
                 }
+            } catch (e: Exception) {
+                Log.e("OpaqueDemo", "Error registering pin", e)
+                _result.value = "Error registering pin: ${e.message}"
             }
         }
     }
@@ -132,13 +184,13 @@ class RegisterViewModel(application: Application) : AndroidViewModel(application
                 val pin = "123"
                 val loginStart = opaqueApi.loginStart(pin)
 
-                val serverStart = service.sendRequest(createBffRequest(loginStart.loginRequest))
+                val serverStart = wsService.sendRequest(loginStart.loginRequest)
 
                 val loginFinish = opaqueApi.loginFinish(
                     pin, serverStart, loginStart.clientRegistration
                 )
 
-                service.sendRequest(createBffRequest(loginFinish.loginFinishRequest))
+                wsService.sendRequest(loginFinish.loginFinishRequest)
 
                 // saves the session key and pake session id for later use
                 sessionKey = loginFinish.sessionKey
@@ -156,7 +208,7 @@ class RegisterViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch(Dispatchers.IO) {
             val createHsmKey = opaqueApi.createHsmKey(sessionKey!!, pakeSessionId!!)
 
-            val serverResponse = service.sendRequest(createBffRequest(createHsmKey))
+            val serverResponse = wsService.sendRequest(createHsmKey)
             val payload = opaqueApi.decryptPayload(serverResponse, sessionKey!!)
             _result.value = payload
         }
@@ -167,7 +219,7 @@ class RegisterViewModel(application: Application) : AndroidViewModel(application
             // todo better naming. It's not listing, it's creating a request to send
             opaqueApi.listHsmKeys(sessionKey!!, pakeSessionId!!)
 
-        val serverResponse = service.sendRequest(createBffRequest(createHsmKey))
+        val serverResponse = wsService.sendRequest(createHsmKey)
         val keys = opaqueApi.decryptKeys(serverResponse, sessionKey!!)
         _keys.value = keys
         _result.value = keys.joinToString("\n\n---\n\n") { key ->
@@ -183,7 +235,7 @@ class RegisterViewModel(application: Application) : AndroidViewModel(application
             val signRequest =
                 opaqueApi.signWithHsm(sessionKey!!, pakeSessionId!!, key.publicKey.keyID, payloadToSign)
 
-            val serverResponse = service.sendRequest(createBffRequest(signRequest.request))
+            val serverResponse = wsService.sendRequest(signRequest.request)
             val signedString =
                 opaqueApi.decryptSign(sessionKey!!, signRequest, serverResponse, key.publicKey)
 
@@ -197,17 +249,46 @@ class RegisterViewModel(application: Application) : AndroidViewModel(application
             val createHsmKey =
                 opaqueApi.deleteHsmKey(sessionKey!!, pakeSessionId!!, key.publicKey.keyID)
 
-            val serverResponse = service.sendRequest(createBffRequest(createHsmKey))
+            val serverResponse = wsService.sendRequest(createHsmKey)
             val payload = opaqueApi.decryptPayload(serverResponse, sessionKey!!)
             _result.value = payload
         }
     }
+
+    // ─── Key Loading ───
 
     private fun getServerPublicKey(): ECPublicKey {
         val inputStream: InputStream =
             getApplication<Application>().resources.openRawResource(R.raw.serverkey)
         val certificate = CertificateFactory.getInstance("X.509").generateCertificate(inputStream)
         return certificate.publicKey as ECPublicKey
+    }
+
+    /**
+     * Load the server's HPKE public key from res/raw/ws_server_key.json (JWK format).
+     */
+    private fun loadWsServerPublicKey(): ECPublicKey {
+        val jsonString = getApplication<Application>().resources
+            .openRawResource(R.raw.ws_server_key)
+            .bufferedReader()
+            .use { it.readText() }
+
+        val jwk = Json.decodeFromString<WsServerJwk>(jsonString)
+
+        require(jwk.kty == "EC" && jwk.crv == "P-256") {
+            "Expected EC P-256 JWK, got kty=${jwk.kty} crv=${jwk.crv}"
+        }
+
+        // Decode base64url coordinates
+        val xBytes = android.util.Base64.decode(jwk.x, android.util.Base64.URL_SAFE or android.util.Base64.NO_PADDING)
+        val yBytes = android.util.Base64.decode(jwk.y, android.util.Base64.URL_SAFE or android.util.Base64.NO_PADDING)
+
+        val ecPoint = ECPoint(BigInteger(1, xBytes), BigInteger(1, yBytes))
+
+        // Get P-256 curve params from the client key pair
+        val params: ECParameterSpec = (getClientKeyPair().public as ECPublicKey).params
+        val pubKeySpec = ECPublicKeySpec(ecPoint, params)
+        return KeyFactory.getInstance("EC").generatePublic(pubKeySpec) as ECPublicKey
     }
 
     private fun getClientKeyPair(): KeyPair {
@@ -245,8 +326,18 @@ class RegisterViewModel(application: Application) : AndroidViewModel(application
         return keyStore.getKey(keyAlias, null) as PrivateKey
     }
 
-    private fun createBffRequest(request: String): BffRequest {
-        return BffRequest(clientIdentifier, request)
+    override fun onCleared() {
+        super.onCleared()
+        wsService.disconnect()
     }
-
 }
+
+/** Minimal JWK model for parsing the server's HPKE public key. */
+@kotlinx.serialization.Serializable
+private data class WsServerJwk(
+    val kty: String,
+    val crv: String,
+    val x: String,
+    val y: String,
+    val kid: String? = null
+)

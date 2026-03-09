@@ -1,0 +1,7 @@
+{
+  "kty": "EC",
+  "crv": "P-256",
+  "x": "U_67XAbTf4N2MJ-BX0UVsaVX24Z3Ddy3OOwGYOqfMj0",
+  "y": "KYrdDEDtu7mmCavkofZuH3nyqXJc4RbZPboidltbVTI",
+  "kid": "r2ps-server-key-1"
+}

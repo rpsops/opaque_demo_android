@@ -85,12 +85,11 @@ class RegisterViewModel(application: Application) : AndroidViewModel(application
     /**
      * Register a pin (123) for the device
      */
-    fun registerPin() {
+    fun registerPin(pin: String) {
         _keys.value = emptyList()
         val code = _authorizationCode.value
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                val pin = "123"
                 val registrationStart = opaqueApi.registrationStart(pin, code!!)
 
                 val registrationResponse = service.sendRequest(
@@ -125,11 +124,52 @@ class RegisterViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
-    fun createSession() {
+    fun changePin(pin: String) {
+        _keys.value = emptyList()
+    viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val registrationStart = opaqueApi.changePinStart( pin, sessionKey!!, pakeSessionId!!)
+
+                val registrationResponse = service.sendRequest(
+                    createBffRequest(registrationStart.registrationRequest)
+                )
+
+                Log.d("OpaqueDemo", "Change PIN response: $registrationResponse")
+
+                val registerFinish = opaqueApi.changePinFinish(
+                    pin,
+                    registrationResponse,
+                    registrationStart.clientRegistration,
+                    sessionKey!!,
+                    pakeSessionId!!
+                )
+
+                val serverFinish = service.sendRequest(
+                    createBffRequest(registerFinish.registrationUpload)
+                )
+
+                val status = opaqueApi.decryptPayload(serverFinish, sessionKey!!)
+                _result.value = status
+            } catch (e: OpaqueException) {
+                when (e) {
+                    is OpaqueException.InvalidInputException -> _result.value =
+                        "Invalid input: ${e.message}"
+
+                    is OpaqueException.CryptoException -> _result.value =
+                        "Crypto error: ${e.message}"
+
+                    is OpaqueException.ProtocolException -> _result.value =
+                        "Protocol error: ${e.message}"
+                }
+            }
+        }
+    }
+
+
+    fun createSession(pin: String) {
         _keys.value = emptyList()
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                val pin = "123"
                 val loginStart = opaqueApi.loginStart(pin)
 
                 val serverStart = service.sendRequest(createBffRequest(loginStart.loginRequest))

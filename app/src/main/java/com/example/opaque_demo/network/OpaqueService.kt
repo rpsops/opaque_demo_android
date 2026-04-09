@@ -16,9 +16,9 @@ import java.io.IOException
 class OpaqueService {
 
     private val client = OkHttpClient()
-    private val baseUrl = "http://10.0.2.2:8088/r2ps-api"
-    private val servicePath = "/service"
-    private val statePath = "/new_state"
+    private val baseUrl = "http://10.0.2.2:8088/hsm/v1"
+    private val servicePath = "/operations"
+    private val statePath = "/device-states"
 
     suspend fun sendRequest(bffRequest: BffRequest): String {
         return post(baseUrl + servicePath, bffRequest)

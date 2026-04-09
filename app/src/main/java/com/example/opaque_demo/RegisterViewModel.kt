@@ -7,6 +7,8 @@ import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.opaque_demo.network.OpaqueService
+import com.nimbusds.jose.jwk.Curve
+import com.nimbusds.jose.jwk.ECKey
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -15,14 +17,10 @@ import kotlinx.coroutines.withContext
 import se.digg.wallet.access_mechanism.api.OpaqueClient
 import se.digg.wallet.access_mechanism.exception.OpaqueException
 import se.digg.wallet.access_mechanism.model.KeyInfo
-import com.nimbusds.jose.jwk.Curve
-import com.nimbusds.jose.jwk.ECKey
-import java.io.InputStream
 import java.security.KeyPair
 import java.security.KeyPairGenerator
 import java.security.KeyStore
 import java.security.PrivateKey
-import java.security.cert.CertificateFactory
 import java.security.interfaces.ECPrivateKey
 import java.security.interfaces.ECPublicKey
 import java.security.spec.ECGenParameterSpec
@@ -32,7 +30,6 @@ class RegisterViewModel(application: Application) : AndroidViewModel(application
     private val service = OpaqueService()
 
     val clientIdentifier = "a25d8884-c77b-43ab-bf9d-1279c08d860d"
-    val serverIdentifier = "dev.cloud-wallet.digg.se"
 
     private val _keys = MutableStateFlow<List<KeyInfo>>(emptyList())
     val keys = _keys.asStateFlow()
@@ -46,15 +43,10 @@ class RegisterViewModel(application: Application) : AndroidViewModel(application
     private val _authorizationCode = MutableStateFlow<String?>(null)
     val authorizationCode = _authorizationCode.asStateFlow()
 
-    private val opaqueApi: OpaqueClient by lazy {
-        OpaqueClient(
-            getServerPublicKey(),
-            getClientKeyPair(),
-            getPinStretchPrivateKey(),
-            serverIdentifier,
-            "RPS-Ops"
-        )
-    }
+    private var _opaqueApi: OpaqueClient? = null
+    private val opaqueApi: OpaqueClient
+        get() = _opaqueApi
+            ?: throw IllegalStateException("OpaqueClient not initialized — call registerNewState() first")
 
     fun registerNewState() {
         viewModelScope.launch(Dispatchers.IO) {
@@ -73,6 +65,15 @@ class RegisterViewModel(application: Application) : AndroidViewModel(application
 
                 val registerState = service.registerState(stateRequest)
                 Log.d("OpaqueDemo", "Register state response: $registerState")
+                val serverPublicKey = (registerState.serverJwsPublicKey
+                    ?: throw IllegalStateException("serverJwsPublicKey missing from registerState response"))
+                _opaqueApi = OpaqueClient(
+                    (serverPublicKey as ECKey).toECPublicKey(),
+                    getClientKeyPair(),
+                    getPinStretchPrivateKey(),
+                    registerState.opaqueServerId,
+                    "RPS-Ops"
+                )
                 _authorizationCode.value = registerState.devAuthorizationCode
                 _result.value = "State registered. Code: ${registerState.devAuthorizationCode}"
             } catch (e: Exception) {
@@ -83,7 +84,7 @@ class RegisterViewModel(application: Application) : AndroidViewModel(application
     }
 
     /**
-     * Register a pin (123) for the device
+     * Register a pin for the device
      */
     fun registerPin(pin: String) {
         _keys.value = emptyList()
@@ -126,9 +127,9 @@ class RegisterViewModel(application: Application) : AndroidViewModel(application
 
     fun changePin(pin: String) {
         _keys.value = emptyList()
-    viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch(Dispatchers.IO) {
             try {
-                val registrationStart = opaqueApi.changePinStart( pin, sessionKey!!, pakeSessionId!!)
+                val registrationStart = opaqueApi.changePinStart(pin, sessionKey!!, pakeSessionId!!)
 
                 val registrationResponse = service.sendRequest(
                     createBffRequest(registrationStart.registrationRequest)
@@ -221,7 +222,12 @@ class RegisterViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch(Dispatchers.IO) {
             val payloadToSign = "{\"payload\":\"test\"}"
             val signRequest =
-                opaqueApi.signWithHsm(sessionKey!!, pakeSessionId!!, key.publicKey.keyID, payloadToSign)
+                opaqueApi.signWithHsm(
+                    sessionKey!!,
+                    pakeSessionId!!,
+                    key.publicKey.keyID,
+                    payloadToSign
+                )
 
             val serverResponse = service.sendRequest(createBffRequest(signRequest.request))
             val signedString =
@@ -241,13 +247,6 @@ class RegisterViewModel(application: Application) : AndroidViewModel(application
             val payload = opaqueApi.decryptPayload(serverResponse, sessionKey!!)
             _result.value = payload
         }
-    }
-
-    private fun getServerPublicKey(): ECPublicKey {
-        val inputStream: InputStream =
-            getApplication<Application>().resources.openRawResource(R.raw.serverkey)
-        val certificate = CertificateFactory.getInstance("X.509").generateCertificate(inputStream)
-        return certificate.publicKey as ECPublicKey
     }
 
     private fun getClientKeyPair(): KeyPair {

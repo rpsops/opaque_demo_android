@@ -2,6 +2,7 @@ package com.example.opaque_demo.network
 
 import android.util.Log
 import com.example.opaque_demo.BffRequest
+import com.example.opaque_demo.WorkerResponse
 import com.example.opaque_demo.StateRequest
 import com.example.opaque_demo.StateResponse
 import kotlinx.coroutines.Dispatchers
@@ -17,11 +18,15 @@ class OpaqueService {
 
     private val client = OkHttpClient()
     private val baseUrl = "http://10.0.2.2:8088/hsm/v1"
-    private val servicePath = "/operations"
+//    private val baseUrl = "https://wallet.sandbox.digg.se/wallet-bff/hsm/v1"
+    private val servicePath = "/requests"
     private val statePath = "/device-states"
 
     suspend fun sendRequest(bffRequest: BffRequest): String {
-        return post(baseUrl + servicePath, bffRequest)
+        val response = post(baseUrl + servicePath, bffRequest)
+        val workerResponse = Json.decodeFromString<WorkerResponse>(response)
+        return workerResponse.result
+            ?: throw IOException("Response missing 'result' field (status=${workerResponse.status})")
     }
 
     suspend fun registerState(stateRequest: StateRequest): StateResponse {
